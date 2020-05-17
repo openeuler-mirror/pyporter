@@ -1,0 +1,14 @@
+# syntax: glob
+build
+dist
+pyporter.egg-info
+.eggs
+.tox
+.venv
+*.egg
+*.swp
+*~
+.cache
+.idea/
+.pytest_cache/
+.mypy_cache/
