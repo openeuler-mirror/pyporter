@@ -9,10 +9,10 @@ A rpm packager bot for python modules from pypi.org
 
 #### Preparation
 Install below software before using this tool
-gcc
-gdb
-libstdc++-devel
-python3-cffi
+1.  gcc
+2.  gdb
+3.  libstdc++-devel
+4.  python3-cffi
 
 #### Instructions
 
