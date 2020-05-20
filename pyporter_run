@@ -54,6 +54,8 @@ def issue_analysis(prepare):
         pkg = prepare.pop(0)
         bpkg = pkg.replace("python3-", "")
         deps = get_deps(bpkg)
+        if (len(deps) < 2):
+            continue
         if (deps[1] == False):
             print("Get module %s failed\n" % pkg)
             return False
@@ -66,7 +68,7 @@ def issue_analysis(prepare):
             # push back to stack
             #
             prepare.insert(0, pkg)
-            for req in deps:
+            for req in deps[0]:
                 if (circle_dep(req, prepare)):
                     print("There is circle dependency")
                     print(prepare)
