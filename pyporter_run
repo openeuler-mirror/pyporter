@@ -1,0 +1,143 @@
+#!/usr/bin/python3
+"""
+This is a packager bot for python modules from pypi.org
+"""
+#******************************************************************************
+# Copyright (c) Huawei Technologies Co., Ltd. 2020-2020. All rights reserved.
+# licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Author: Shinwell_Hu Myeuler
+# Create: 2020-05-07
+# Description: This is a helper tools for pyporter 
+# ******************************************************************************/
+
+from pprint import pprint
+from os import path
+import json
+import sys
+import re
+import datetime
+import argparse
+import subprocess
+import os
+from pathlib import Path
+import queue
+
+
+def pkg_installed(pkg):
+    #ret = subprocess.call(["rpm", "-qi", pkg], stdout=subprocess.PIPE)
+    ret = subprocess.call(["rpm", "-qi", pkg])
+    if (ret == 0):
+        return True
+    
+    # try to install it
+    ret = subprocess.call(["yum", "install", "-y", pkg])
+    if (ret == 0):
+        return True
+
+    return False
+
+def circle_dep(pkg, prepare):
+    for ppg in prepare:
+        if (ppg == pkg):
+            return True
+    return False
+
+def issue_analysis(prepare):
+    while (len(prepare) != 0):
+        pkg = prepare.pop(0)
+        bpkg = pkg.replace("python3-", "")
+        deps = get_deps(bpkg)
+        if (deps[1] == False):
+            print("Get module %s failed\n" % pkg)
+            return False
+        if (len(deps[0]) == 0):
+            ret = build_install_pkg(pkg)
+            if (ret == False):
+                return False
+        else:
+            #
+            # push back to stack
+            #
+            prepare.insert(0, pkg)
+            for req in deps:
+                if (circle_dep(req, prepare)):
+                    print("There is circle dependency")
+                    print(prepare)
+                    print(bpkg)
+                    return False
+                else:
+                    prepare.insert(0, req)
+
+    return True
+
+        
+
+def do_prepare_job(pkgs):
+    pkg_prepare = []
+
+    for pkg in pkgs:
+        pkg_prepare.append(pkg)
+
+    if (len(pkg_prepare) == 0):
+        return True
+
+    return issue_analysis(pkg_prepare)
+
+def build_install_pkg(pkg):
+    print("Build&Install : %s\n" % pkg)
+
+    bpkg = pkg.replace("python3-", "")
+#    ret = subprocess.call(["./pyporter", "-B", bpkg], stdout=subprocess.PIPE)
+    ret = subprocess.call(["./pyporter", "-B", bpkg])
+    if (ret != 0):
+        print("    Build&Install package %s failed\n" % pkg)
+        return False
+   
+    return True
+
+def get_deps(pkg):
+    needed = []
+    proc = subprocess.Popen(["./pyporter", "-R", pkg], stdout=subprocess.PIPE)
+
+    #if (proc.returncode != 0):
+    #    return (needed, False)
+
+    while (True):
+        line = proc.stdout.readline()
+        if not line:
+            break;
+        newpkg = str(line.strip().decode())
+        if (pkg_installed(newpkg) == False):
+            needed.append(newpkg)
+    proc.stdout.close()
+    proc.wait()
+
+    return (needed, True)
+
+
+if __name__ == "__main__":
+    ret = True
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("pkg", type=str, help="The python module name")
+
+    args = parser.parse_args()
+
+    reqs = get_deps(args.pkg)
+    if (reqs[1] == False):
+        print("Get deps failed\n")
+        sys.exit(1)
+    if (len(reqs[0]) != 0):
+        ret = do_prepare_job(reqs[0])
+    
+    if (ret == True):
+        build_install_pkg(args.pkg)
+

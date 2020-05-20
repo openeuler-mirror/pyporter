@@ -28,9 +28,11 @@ import datetime
 import argparse
 import subprocess
 import os
+import platform
 from pathlib import Path
 # python3-wget is not default available on openEuler yet.
 # import wget  
+
 
 url_template = 'https://pypi.org/pypi/{pkg_name}/json'
 json_file_template = '{pkg_name}.json'
@@ -88,19 +90,24 @@ def transform_module_name(n):
     """
     # remove ()
     ns = re.split("[()]", n)
-    if len(ns) > 1:
-        m = re.match("([<>=]+)( *)(\d.*)", ns[1])
-        ns[1] = m[1] + " " + m[3]
+    ver_constrain = []
     ns[0] = ns[0].strip()
     if ns[0].startswith("python-"):
         ns[0] = ns[0].replace("python-", "python3-")
-        return " ".join(ns) 
     else:
         ns[0] = "python3-" + ns[0] 
         if ns[0].find("/") != -1 or ns[0].find(".") != -1:
             return ""
-        else:
-            return " ".join(ns)
+    """
+    if len(ns) > 1:
+        vers = ns[1].split(",")
+        for ver in vers:
+            m = re.match("([<>=]+)( *)(\d.*)", ver.strip())
+            ver_constrain.append(ns[0] + " " + m[1] + " " + m[3])
+        return ", ".join(ver_constrain)
+    else:
+    """
+    return ns[0]
 
 
 def get_requires(j):
@@ -216,8 +223,9 @@ def get_pkg_json(pkg):
     """
     url = url_template.format(pkg_name=pkg)
 
-    u = urllib.request.urlopen(url)
-    resp = json.loads(u.read().decode('utf-8'))
+    resp = ""
+    with urllib.request.urlopen(url) as u:
+        resp = json.loads(u.read().decode('utf-8'))
 
     return resp
 
@@ -233,31 +241,30 @@ def download_source(j, tgtpath):
     return subprocess.call(["wget", s_url, "-P", tgtpath])
 
 
-def prepare_rpm_build_env(buildroot):
+def prepare_rpm_build_env(root):
     """
     prepare environment for rpmbuild
     """
+    if (os.path.exists(root) == False):
+        print("Root path %s does not exist\n" & buildroot)
+        return ""
+
+    buildroot = os.path.join(root, "rpmbuild")
     if (os.path.exists(buildroot) == False):
-        print("Build Root path %s does not exist\n", buildroot)
-        return False
+        os.mkdir(buildroot)
 
     for sdir in ['SPECS', 'BUILD', 'SOURCES', 'SRPMS', 'RPMS', 'BUILDROOT']:
         bpath = os.path.join(buildroot, sdir)
         if (os.path.exists(bpath) == False):
             os.mkdir(bpath)
 
-    return True
+    return buildroot
 
 
-def try_install_package(pkg):
+def try_pip_install_package(pkg):
     """
     install packages listed in build requires
     """
-    print(pkg)
-    ret = subprocess.call(["rpm", "-qi", pkg])
-    if ret == 0:
-        return True
-
     # try pip installation
     pip_name = pkg.split("-")
     if len(pip_name) == 2:
@@ -273,10 +280,21 @@ def try_install_package(pkg):
     #
     return True
 
-def prepare_dependencies(req_list):
-    for req in req_list:
-        if (try_install_package(req) == False):
-            return req
+def package_installed(pkg):
+    print(pkg)
+    ret = subprocess.call(["rpm", "-qi", pkg])
+    if ret == 0:
+        return True
+
+    return False
+
+
+def dependencies_ready(req_list):
+    """ 
+    TODO: do not need to do dependency check here, do it in pyporter_run
+    """
+    #    if (try_pip_install_package(req) == False):
+    #        return req
     return ""
 
 def build_package(specfile):
@@ -287,17 +305,34 @@ def build_package(specfile):
     return ret
 
 
-def build_rpm(j, buildroot):
+def build_install_rpm(j, rootpath):
+    ret = build_rpm(j, rootpath)
+    if (ret != ""):
+        return ret
+
+    arch = "noarch"
+    if (build_noarch == False):
+        arch = platform.machine()
+
+    pkgname = os.path.join(rootpath, "rpmbuild", "RPMS", arch, "python3-" + j["info"]["name"] + "*")
+    ret = subprocess.call(["rpm", "-ivh", pkgname])
+    if (ret != 0):
+        return "Install failed\n"
+
+    return ""
+
+def build_rpm(j, rootpath):
     """
     full process to build rpm
     """
-    if(prepare_rpm_build_env(buildroot) == False):
+    buildroot = prepare_rpm_build_env(rootpath) 
+    if (buildroot == ""):
         return False
 
     specfile = os.path.join(buildroot, "SPECS", "python-" + j["info"]["name"] + ".spec")
 
     req_list = build_spec(j, specfile)
-    ret = prepare_dependencies(req_list)
+    ret = dependencies_ready(req_list)
     if ret != "":
         print("%s can not be installed automatically, Please handle it" % ret)
         return ret
@@ -320,7 +355,8 @@ def build_spec(resp, output):
         print()
     else:
         sys.stdout = open(output, 'w+')
-    
+   
+    print("%global _empty_manifest_terminate_build 0")
     print(name_tag_template.format(pkg_name=resp["info"]["name"]))
     print(version_tag_template.format(pkg_ver=resp["info"]["version"]))
     print(release_tag_template)
@@ -384,8 +420,13 @@ def build_spec(resp, output):
     print("if [ -d usr/sbin ]; then")
     print("\tfind usr/sbin -type f -printf \"/%h/%f\\n\" >> filelist.lst")
     print("fi")
+    print("touch doclist.lst")
+    print("if [ -d usr/share/man ]; then")
+    print("\tfind usr/share/man -type f -printf \"/%h/%f.gz\\n\" >> doclist.lst")
+    print("fi")
     print("popd")
     print("mv %{buildroot}/filelist.lst .")
+    print("mv %{buildroot}/doclist.lst .")
     print("")
     print("%files -n python3-{name} -f filelist.lst".format(name=resp["info"]["name"]))
 #   print("%{python3_sitelib}/*.egg-info/")
@@ -397,7 +438,7 @@ def build_spec(resp, output):
         print("%dir %{python3_sitearch}/*")
 
     print("")
-    print("%files help")
+    print("%files help -f doclist.lst")
     print("%{_pkgdocdir}")
     print("")
     print("%changelog")
@@ -412,12 +453,14 @@ def build_spec(resp, output):
 
 if __name__ == "__main__":
 
-    dft_root_path=os.path.join(str(Path.home()), "rpmbuild")
+    dft_root_path=os.path.join(str(Path.home()))
 
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-s", "--spec", help="Create spec file", action="store_true")
+    parser.add_argument("-R", "--requires", help="Get required python modules", action="store_true")
     parser.add_argument("-b", "--build", help="Build rpm package", action="store_true")
+    parser.add_argument("-B", "--buildinstall", help="Build&Install rpm package", action="store_true")
     parser.add_argument("-r", "--rootpath", help="Build rpm package in root path", type=str, default=dft_root_path)
     parser.add_argument("-d", "--download", help="Download source file indicated path", action="store_true")
     parser.add_argument("-p", "--path", help="indicated path to store files", type=str, default=os.getcwd())
@@ -427,6 +470,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     response = get_pkg_json(args.pkg)
+    if (response == ""):
+        print("Get %s module json info failed\n" % args.pkg)
+        sys.exit(1)
+
+    if (args.requires):
+        reqlist = get_build_requires(response)
+        if reqlist is not None:
+            for req in reqlist:
+                print(req)
+        sys.exit(0)
 
     if (args.spec):
         build_spec(response, args.output)
@@ -434,7 +487,14 @@ if __name__ == "__main__":
     if (args.build):
         ret = build_rpm(response, args.rootpath)
         if ret != "":
-            print("BuildRequire : %s" % ret)
+            print("build failed : BuildRequire : %s\n" % ret)
+            sys.exit(1)
+
+    if (args.buildinstall):
+        ret = build_install_rpm(response, args.rootpath)
+        if ret != "":
+            print("Build & install failed\n")
+            sys.exit(1)
 
     if (args.download):
         download_source(response, args.path)

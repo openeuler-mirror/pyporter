@@ -16,7 +16,18 @@ Install below software before using this tool
 
 #### Instructions
 
-1.  pyporter <package> -s -b -d -o python-<package>.spec
+pyporter is a tool to create spec file and create rpm for python modules
+For more details, please use pyporter -h
+
+pyporter <package> -s -b -d -o python-<package>.spec
+
+pyporter_run is a wrapper tool for pyporter, which analyze the dependency 
+of the python modules and build & install them automatically. 
+
+Usage :
+     pyporter_run PKG_MODULE_NAME
+
+Notice : please run pyporter_run with sudo privilages
 
 #### Contribution
 
