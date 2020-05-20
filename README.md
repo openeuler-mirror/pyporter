@@ -7,6 +7,13 @@ A rpm packager bot for python modules from pypi.org
 
 1.  python3 setup.py install
 
+#### Preparation
+Install below software before using this tool
+1.  gcc
+2.  gdb
+3.  libstdc++-devel
+4.  python3-cffi
+
 #### Instructions
 
 1.  pyporter <package> -s -b -d -o python-<package>.spec
