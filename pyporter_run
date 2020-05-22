@@ -104,6 +104,17 @@ def build_install_pkg(pkg):
    
     return True
 
+def do_pkg_check(pkg):
+    """
+    For the reason that json file may have some misinfo, need to add a checklist 
+    to refine the package name
+    """
+    if (pkg == "python3-cython"):
+        pkg = "python3-Cython"
+
+    return pkg
+
+
 def get_deps(pkg):
     needed = []
     proc = subprocess.Popen(["./pyporter", "-R", pkg], stdout=subprocess.PIPE)
@@ -115,7 +126,7 @@ def get_deps(pkg):
         line = proc.stdout.readline()
         if not line:
             break;
-        newpkg = str(line.strip().decode())
+        newpkg = do_pkg_check(str(line.strip().decode()))
         if (pkg_installed(newpkg) == False):
             needed.append(newpkg)
     proc.stdout.close()
