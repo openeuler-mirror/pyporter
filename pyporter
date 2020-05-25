@@ -66,6 +66,21 @@ class PyPorter:
         with urllib.request.urlopen(url) as u:
             self.__json = json.loads(u.read().decode('utf-8'))
 
+    def get_spec_name(self):
+        return "python3-" + self.__json["info"]["name"] + ".spec" 
+
+    def get_name(self):
+        return self.__json["info"]["name"]
+
+    def get_version(self):
+        return self.__json["info"]["version"]
+    
+    def get_summary(self):
+        return self.__json["info"]["summary"]
+
+    def get_home(self):
+        return self.__json["info"]["project_urls"]["Homepage"]
+
     def get_license(self):
         """
         By default, the license info can be achieved from json["info"]["license"]
@@ -111,13 +126,13 @@ class PyPorter:
                 return ks[2].strip()
         return ""
 
-    def get_buildarch(self, j):
+    def get_buildarch(self):
         """
         if this module has a prebuild package for amd64, then it is arch dependent.
         print BuildArch tag if needed.
         """
-        v = j["info"]["version"]
-        rs = j["releases"][v]
+        v = self.__json["info"]["version"]
+        rs = self.__json["releases"][v]
         for r in rs:
             if r["packagetype"] == "bdist_wheel":
                 if r["url"].find("amd64") != -1:
@@ -126,14 +141,14 @@ class PyPorter:
                     return
         print("BuildArch:\tnoarch")
 
-    def get_description(self, j):
+    def get_description(self):
         """
         return description.
         Usually it's json["info"]["description"]
         If it's rst style, then only use the content for the first paragraph, and remove all tag line.
         For empty description, use summary instead.
         """
-        desc = j["info"]["description"].splitlines()
+        desc = self.__json["info"]["description"].splitlines()
         res = []
         paragraph = 0
         for d in desc:
@@ -154,9 +169,9 @@ class PyPorter:
         if res != []:
             return "\n".join(res)
         elif paragraph == 0:
-            return j["info"]["description"]
+            return self.__json["info"]["description"]
         else:
-            return j["info"]["summary"]
+            return self.__json["info"]["summary"]
 
     def get_build_requires():
         req_list=[]
@@ -353,55 +368,56 @@ def build_rpm(j, rootpath):
     return ""
 
 
-def build_spec(resp, output):
+def build_reqs(porter):
+
+def build_spec(porter, output):
     """
     print out the spec file
     """
     if os.path.isdir(output):
-        output = os.path.join(output, "python3-" + resp["info"]["name"]) 
+        output = os.path.join(output, porter.get_spec_name()) 
     tmp = sys.stdout
-    if (output == ""):
-        print()
-    else:
+    if (output != ""):
         sys.stdout = open(output, 'w+')
    
     print("%global _empty_manifest_terminate_build 0")
-    print(name_tag_template.format(pkg_name=resp["info"]["name"]))
-    print(version_tag_template.format(pkg_ver=resp["info"]["version"]))
+    print(name_tag_template.format(pkg_name=porter.get_name()))
+    print(version_tag_template.format(pkg_ver=porter.get_version()))
     print(release_tag_template)
-    print(summary_tag_template.format(pkg_sum=resp["info"]["summary"]))
-    print(license_tag_template.format(pkg_lic=get_license(resp)))
-    print(home_tag_template.format(pkg_home=resp["info"]["project_urls"]["Homepage"]))
-    print(source_tag_template.format(pkg_source=get_source_url(resp)))
-    get_buildarch(resp)
+    print(summary_tag_template.format(pkg_sum=porter.get_summary()))
+    print(license_tag_template.format(pkg_lic=porter.get_license()))
+    print(home_tag_template.format(pkg_home=porter.get_home()))
+    print(source_tag_template.format(pkg_source=porter.get_source_url()))
+    porter.get_buildarch()
     print("")
-    get_requires(resp)
+    porter.get_requires()
     print("")
     print("%description")
-    print(get_description(resp))
+    print(porter.get_description())
     print("")
     print("%package -n python3-{name}".format(name=resp["info"]["name"]))
     print(summary_tag_template.format(pkg_sum=resp["info"]["summary"]))
     print("Provides:\tpython-" + resp["info"]["name"])
+
+
     print(buildreq_tag_template.format(req='python3-devel'))
     print(buildreq_tag_template.format(req='python3-setuptools'))
-
     if build_noarch == False:
         print(buildreq_tag_template.format(req='python3-cffi'))
         print(buildreq_tag_template.format(req='gcc'))
         print(buildreq_tag_template.format(req='gdb'))
 
 
-    build_req_list=get_build_requires(resp)
+    build_req_list=porter.get_build_requires()
 
     print("%description -n python3-" + resp["info"]["name"])
-    print(get_description(resp))
+    print(get_description())
     print("")
     print("%package help")
     print("Summary:\tDevelopment documents and examples for {name}".format(name=resp["info"]["name"]))
     print("Provides:\tpython3-{name}-doc".format(name=resp["info"]["name"]))
     print("%description help")
-    print(get_description(resp))
+    print(get_description())
     print("")
     print("%prep")
     print("%autosetup -n {name}-{ver}".format(name=resp["info"]["name"], ver=resp["info"]["version"]))
@@ -509,23 +525,23 @@ if __name__ == "__main__":
         sys.exit(0)
 
     if (args.spec):
-        build_spec(response, args.output)
+        build_spec(porter, args.output)
 
     if (args.build):
-        ret = build_rpm(response, args.rootpath)
+        ret = build_rpm(porter, args.rootpath)
         if ret != "":
             print("build failed : BuildRequire : %s\n" % ret)
             sys.exit(1)
 
     if (args.buildinstall):
-        ret = build_install_rpm(response, args.rootpath)
+        ret = build_install_rpm(porter, args.rootpath)
         if ret != "":
             print("Build & install failed\n")
             sys.exit(1)
 
     if (args.download):
-        download_source(response, args.path)
+        download_source(porter, args.path)
 
     if (args.json):
-        store_json(response, args.pkg, args.path)
+        store_json(porter, args.pkg, args.path)
 
