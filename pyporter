@@ -50,6 +50,13 @@ buildreq_tag_template = 'BuildRequires:\t{req}'
 # 2. requires_dist has some dependency restirction, need to present
 # 3. dependency outside python (i.e. pycurl depends on libcurl) doesn't exist in pipy
 
+
+class PerlPorter:
+    __mod_zip_file = ""
+
+    def __init__(self, pkg, zipfile):
+
+
 class PyPorter:
     __url_template = 'https://pypi.org/pypi/{pkg_name}/json'
     __build_noarch = True
