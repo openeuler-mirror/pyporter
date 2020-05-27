@@ -51,11 +51,6 @@ buildreq_tag_template = 'BuildRequires:\t{req}'
 # 3. dependency outside python (i.e. pycurl depends on libcurl) doesn't exist in pipy
 
 
-class PerlPorter:
-    __mod_zip_file = ""
-
-    def __init__(self, pkg, zipfile):
-
 
 class PyPorter:
     __url_template = 'https://pypi.org/pypi/{pkg_name}/json'
