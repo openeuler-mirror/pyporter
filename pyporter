@@ -513,8 +513,6 @@ def do_args(root):
 def porter_creator(t_str, pkg):
     if (t_str == "python"):
         return PyPorter(pkg)
-    elif (t_str == "perl"):
-        return PerlPorter(pkg)
 
     return None
 
