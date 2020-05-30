@@ -34,9 +34,8 @@ from pathlib import Path
 # import wget  
 
 
-url_template = 'https://pypi.org/pypi/{pkg_name}/json'
 json_file_template = '{pkg_name}.json'
-name_tag_template    = 'Name:\t\tpython-{pkg_name}' 
+name_tag_template    = 'Name:\t\t{pkg_name}' 
 summary_tag_template = 'Summary:\t{pkg_sum}' 
 version_tag_template = 'Version:\t{pkg_ver}' 
 release_tag_template = 'Release:\t1'
@@ -46,40 +45,202 @@ source_tag_template = 'Source0:\t{pkg_source}'
 
 buildreq_tag_template = 'BuildRequires:\t{req}'
 
-build_noarch = True # Usually python modules are arch independent
-
 # TODO List
 # 1. Need a reliable way to get description of module .. Partially done
 # 2. requires_dist has some dependency restirction, need to present
 # 3. dependency outside python (i.e. pycurl depends on libcurl) doesn't exist in pipy
 
 
-def get_license(j):
-    """
-    By default, the license info can be achieved from json["info"]["license"]
-    In rare cases it doesn't work.
-    We fall back to json["info"]["classifiers"], it looks like License :: OSI Approved :: BSD Clause
-    """
-    if j["info"]["license"] != "":
-        return j["info"]["license"]
-    for k in j["info"]["classifiers"]:
-        if k.startswith("License"):
-            ks = k.split("::")
-            return ks[2].strip()
-    return ""
+
+class PyPorter:
+    __url_template = 'https://pypi.org/pypi/{pkg_name}/json'
+    __build_noarch = True
+    __json = None
+    __module_name = ""
+    __spec_name = ""
+    __pkg_name = ""
+    
+    def __init__(self, pkg):
+        """
+        receive json from pypi.org
+        """
+        url = self.__url_template.format(pkg_name=pkg)
+        resp = ""
+        with urllib.request.urlopen(url) as u:
+            self.__json = json.loads(u.read().decode('utf-8'))
+        if (self.__json is not None):
+            self.__module_name = self.__json["info"]["name"]
+            self.__spec_name = "python-" + self.__module_name
+            self.__pkg_name = "python3-" + self.__module_name
+            self.__build_noarch = self.__get_buildarch()
 
 
-def get_source_url(j):
-    """
-    return URL for source file for the latest version
-    return "" in errors
-    """
-    v = j["info"]["version"]
-    rs = j["releases"][v]
-    for r in rs:
-        if r["packagetype"] == "sdist":
-            return r["url"]
-    return ""
+    def get_spec_name(self):
+        return self.__spec_name 
+
+    def get_module_name(self):
+        return self.__module_name
+
+    def get_pkg_name(self):
+        return self.__pkg_name
+
+    def get_version(self):
+        return self.__json["info"]["version"]
+    
+    def get_summary(self):
+        return self.__json["info"]["summary"]
+
+    def get_home(self):
+        return self.__json["info"]["project_urls"]["Homepage"]
+
+    def get_license(self):
+        """
+        By default, the license info can be achieved from json["info"]["license"]
+        in rare cases it doesn't work.
+        We fall back to json["info"]["classifiers"], it looks like License :: OSI Approved :: BSD Clause
+        """
+        if self.__json["info"]["license"] != "":
+            return self.__json["info"]["license"]
+        for k in self.__json["info"]["classifiers"]:
+            if k.startswith("License"):
+                ks = k.split("::")
+                return ks[2].strip()
+        return ""
+
+    def get_source_url(self):
+        """
+        return URL for source file for the latest version
+        return "" in errors
+        """
+        v = self.__json["info"]["version"]
+        rs = self.__json["releases"][v]
+        for r in rs:
+            if r["packagetype"] == "sdist":
+                return r["url"]
+        return ""
+
+    def get_requires(self):
+        """
+        return all requires no matter if extra is required.
+        """
+        rs = self.__json["info"]["requires_dist"]
+        if rs is None:
+            return
+        for r in rs:
+            idx = r.find(";")
+            mod = transform_module_name(r[:idx])
+            print("Requires:\t" + mod)
+        if self.__json["info"]["license"] != "":
+            return self.__json["info"]["license"]
+        for k in self.__json["info"]["classifiers"]:
+            if k.startswith("License"):
+                ks = k.split("::")
+                return ks[2].strip()
+        return ""
+
+    def __get_buildarch(self):
+        """
+        if this module has a prebuild package for amd64, then it is arch dependent.
+        print BuildArch tag if needed.
+        """
+        v = self.__json["info"]["version"]
+        rs = self.__json["releases"][v]
+        for r in rs:
+            if r["packagetype"] == "bdist_wheel":
+                if r["url"].find("amd64") != -1:
+                    return False
+        return True
+
+    def is_build_noarch(self):
+        return self.__build_noarch
+
+    def get_buildarch(self):
+        if (self.__build_noarch == True):
+            print("BuildArch:\tnoarch")
+
+    def get_description(self):
+        """
+        return description.
+        Usually it's json["info"]["description"]
+        If it's rst style, then only use the content for the first paragraph, and remove all tag line.
+        For empty description, use summary instead.
+        """
+        desc = self.__json["info"]["description"].splitlines()
+        res = []
+        paragraph = 0
+        for d in desc:
+            if len(d.strip()) == 0:
+                continue
+            first_char = d.strip()[0]
+            ignore_line = False
+            if d.strip().startswith("===") or d.strip().startswith("---"):
+                paragraph = paragraph + 1
+                ignore_line = True
+            elif d.strip().startswith(":") or d.strip().startswith(".."):
+                ignore_line = True
+            if ignore_line != True and paragraph == 1:
+                res.append(d)
+            if paragraph >= 2:
+                del res[-1]
+                return "\n".join(res)
+        if res != []:
+            return "\n".join(res)
+        elif paragraph == 0:
+            return self.__json["info"]["description"]
+        else:
+            return self.__json["info"]["summary"]
+
+    def get_build_requires(self):
+        req_list=[]
+        rds = self.__json["info"]["requires_dist"]
+        if rds is not None:
+            for rp in rds:
+                br = refine_requires(rp)
+                if (br == ""):
+                    continue
+                #
+                # Do not output BuildRequires: 
+                # just collect all build requires and using pip to install
+                # than can help to build all rpm withoud trap into 
+                # build dependency nightmare
+                #
+                #print(buildreq_tag_template.format(req=br))
+                name=str.lstrip(br).split(" ")
+                req_list.append(name[0])
+        return req_list
+
+    def prepare_build_requires(self):
+        print(buildreq_tag_template.format(req='python3-devel'))
+        print(buildreq_tag_template.format(req='python3-setuptools'))
+        if (self.__build_noarch == False):
+            print(buildreq_tag_template.format(req='python3-cffi'))
+            print(buildreq_tag_template.format(req='gcc'))
+            print(buildreq_tag_template.format(req='gdb'))
+
+    def prepare_pkg_build(self):
+        print("%py3_build")
+    def prepare_pkg_install(self):
+        print("%py3_install")
+    def prepare_pkg_files(self):
+        if self.__build_noarch:
+            print("%dir %{python3_sitelib}/*")
+        else:
+            print("%dir %{python3_sitearch}/*")
+    
+    def store_json(self, spath):
+        """
+        save json file
+        """
+        fname = json_file_template.format(pkg_name=self.__pkg_name)
+        json_file = os.path.join(spath, fname)
+        
+        # if file exist, do nothing 
+        if path.exists(json_file) and path.isfile(json_file):
+            with open(json_file, 'r') as f:
+                resp = json.load(f)
+        else:
+            with open(json_file, 'w') as f:
+                json.dump(self.__json, f)
 
 
 def transform_module_name(n):
@@ -110,19 +271,6 @@ def transform_module_name(n):
     return ns[0]
 
 
-def get_requires(j):
-    """
-    return all requires no matter if extra is required.
-    """
-    rs = j["info"]["requires_dist"]
-    if rs is None:
-        return
-    for r in rs:
-        idx = r.find(";")
-        mod = transform_module_name(r[:idx])
-        print("Requires:\t" + mod)
-
-
 def refine_requires(req):
     """
     return only requires without ';' (thus no extra)
@@ -133,111 +281,15 @@ def refine_requires(req):
     # TODO: need more parsing of the denpency after ;
     return transform_module_name(ra[0])
 
-def get_build_requires(resp):
-    req_list=[]
-    rds = resp["info"]["requires_dist"]
-    if rds is not None:
-        for rp in rds:
-            br = refine_requires(rp)
-            if (br == ""):
-                continue
-            #
-            # Do not output BuildRequires: 
-            # just collect all build requires and using pip to install
-            # than can help to build all rpm withoud trap into 
-            # build dependency nightmare
-            #
-            #print(buildreq_tag_template.format(req=br))
-            name=str.lstrip(br).split(" ")
-            req_list.append(name[0])
-    return req_list
 
-def get_buildarch(j):
-    """
-    If this module has a prebuild package for amd64, then it is arch dependent.
-    print BuildArch tag if needed.
-    """
-    v = j["info"]["version"]
-    rs = j["releases"][v]
-    for r in rs:
-        if r["packagetype"] == "bdist_wheel":
-            if r["url"].find("amd64") != -1:
-                global build_noarch
-                build_noarch = False
-                return
-    print("BuildArch:\tnoarch")
-
-
-def get_description(j):
-    """
-    return description.
-    Usually it's json["info"]["description"]
-    If it's rst style, then only use the content for the first paragraph, and remove all tag line.
-    For empty description, use summary instead.
-    """
-    desc = j["info"]["description"].splitlines()
-    res = []
-    paragraph = 0
-    for d in desc:
-        if len(d.strip()) == 0:
-            continue
-        first_char = d.strip()[0]
-        ignore_line = False
-        if d.strip().startswith("===") or d.strip().startswith("---"):
-            paragraph = paragraph + 1
-            ignore_line = True
-        elif d.strip().startswith(":") or d.strip().startswith(".."):
-            ignore_line = True
-        if ignore_line != True and paragraph == 1:
-            res.append(d)
-        if paragraph >= 2:
-            del res[-1]
-            return "\n".join(res)
-    if res != []:
-        return "\n".join(res)
-    elif paragraph == 0:
-        return j["info"]["description"]
-    else:
-        return j["info"]["summary"]
-
-
-def store_json(j, pkg, spath):
-    """
-    save json file
-    """
-    fname = json_file_template.format(pkg_name=pkg)
-    json_file = os.path.join(spath, fname)
-    
-    # if file exist, do nothing 
-    if path.exists(json_file) and path.isfile(json_file):
-        with open(json_file, 'r') as f:
-            resp = json.load(f)
-    else:
-        with open(json_file, 'w') as f:
-            json.dump(j, f)
-
-
-def get_pkg_json(pkg):
-    """
-    recieve json from pypi.org
-    """
-    url = url_template.format(pkg_name=pkg)
-
-    resp = ""
-    with urllib.request.urlopen(url) as u:
-        resp = json.loads(u.read().decode('utf-8'))
-
-    return resp
-
-
-def download_source(j, tgtpath):
+def download_source(porter, tgtpath):
     """
     download source file from url, and save it to target path
     """
     if (os.path.exists(tgtpath) == False):
         print("download path %s does not exist\n", tgtpath)
         return False
-    s_url = get_source_url(j)
+    s_url = porter.get_source_url()
     return subprocess.call(["wget", s_url, "-P", tgtpath])
 
 
@@ -305,23 +357,25 @@ def build_package(specfile):
     return ret
 
 
-def build_install_rpm(j, rootpath):
-    ret = build_rpm(j, rootpath)
+def build_install_rpm(porter, rootpath):
+    ret = build_rpm(porter, rootpath)
     if (ret != ""):
         return ret
 
     arch = "noarch"
-    if (build_noarch == False):
+    if (porter.is_build_noarch()):
+        arch = "noarch"
+    else:
         arch = platform.machine()
 
-    pkgname = os.path.join(rootpath, "rpmbuild", "RPMS", arch, "python3-" + j["info"]["name"] + "*")
+    pkgname = os.path.join(rootpath, "rpmbuild", "RPMS", arch, porter.get_pkg_name() + "*")
     ret = subprocess.call(["rpm", "-ivh", pkgname])
     if (ret != 0):
         return "Install failed\n"
 
     return ""
 
-def build_rpm(j, rootpath):
+def build_rpm(porter, rootpath):
     """
     full process to build rpm
     """
@@ -329,79 +383,72 @@ def build_rpm(j, rootpath):
     if (buildroot == ""):
         return False
 
-    specfile = os.path.join(buildroot, "SPECS", "python-" + j["info"]["name"] + ".spec")
+    specfile = os.path.join(buildroot, "SPECS", porter.get_spec_name() + ".spec")
 
-    req_list = build_spec(j, specfile)
+    req_list = build_spec(porter, specfile)
     ret = dependencies_ready(req_list)
     if ret != "":
         print("%s can not be installed automatically, Please handle it" % ret)
         return ret
 
-    download_source(j, os.path.join(buildroot, "SOURCES"))
+    download_source(porter, os.path.join(buildroot, "SOURCES"))
 
     build_package(specfile)
 
     return ""
 
 
-def build_spec(resp, output):
+def build_spec(porter, output):
     """
     print out the spec file
     """
     if os.path.isdir(output):
-        output = os.path.join(output, "python3-" + resp["info"]["name"]) 
+        output = os.path.join(output, porter.get_spec_name() + ".spec") 
     tmp = sys.stdout
-    if (output == ""):
-        print()
-    else:
+    if (output != ""):
         sys.stdout = open(output, 'w+')
    
     print("%global _empty_manifest_terminate_build 0")
-    print(name_tag_template.format(pkg_name=resp["info"]["name"]))
-    print(version_tag_template.format(pkg_ver=resp["info"]["version"]))
+    print(name_tag_template.format(pkg_name=porter.get_spec_name()))
+    print(version_tag_template.format(pkg_ver=porter.get_version()))
     print(release_tag_template)
-    print(summary_tag_template.format(pkg_sum=resp["info"]["summary"]))
-    print(license_tag_template.format(pkg_lic=get_license(resp)))
-    print(home_tag_template.format(pkg_home=resp["info"]["project_urls"]["Homepage"]))
-    print(source_tag_template.format(pkg_source=get_source_url(resp)))
-    get_buildarch(resp)
+    print(summary_tag_template.format(pkg_sum=porter.get_summary()))
+    print(license_tag_template.format(pkg_lic=porter.get_license()))
+    print(home_tag_template.format(pkg_home=porter.get_home()))
+    print(source_tag_template.format(pkg_source=porter.get_source_url()))
+    porter.get_buildarch()
     print("")
-    get_requires(resp)
+    porter.get_requires()
     print("")
     print("%description")
-    print(get_description(resp))
+    print(porter.get_description())
     print("")
-    print("%package -n python3-{name}".format(name=resp["info"]["name"]))
-    print(summary_tag_template.format(pkg_sum=resp["info"]["summary"]))
-    print("Provides:\tpython-" + resp["info"]["name"])
-    print(buildreq_tag_template.format(req='python3-devel'))
-    print(buildreq_tag_template.format(req='python3-setuptools'))
 
-    if build_noarch == False:
-        print(buildreq_tag_template.format(req='python3-cffi'))
-        print(buildreq_tag_template.format(req='gcc'))
-        print(buildreq_tag_template.format(req='gdb'))
+    print("%package -n {name}".format(name=porter.get_pkg_name()))
+    print(summary_tag_template.format(pkg_sum=porter.get_summary()))
+    print("Provides:\t" + porter.get_spec_name())
 
+    porter.prepare_build_requires()
 
-    build_req_list=get_build_requires(resp)
+    build_req_list=porter.get_build_requires()
 
-    print("%description -n python3-" + resp["info"]["name"])
-    print(get_description(resp))
+    print("%description -n " + porter.get_pkg_name())
+    print(porter.get_description())
     print("")
     print("%package help")
-    print("Summary:\tDevelopment documents and examples for {name}".format(name=resp["info"]["name"]))
-    print("Provides:\tpython3-{name}-doc".format(name=resp["info"]["name"]))
+    print("Summary:\tDevelopment documents and examples for {name}".format(name=porter.get_module_name()))
+    print("Provides:\t{name}-doc".format(name=porter.get_pkg_name()))
     print("%description help")
-    print(get_description(resp))
+    print(porter.get_description())
     print("")
     print("%prep")
-    print("%autosetup -n {name}-{ver}".format(name=resp["info"]["name"], ver=resp["info"]["version"]))
+    print("%autosetup -n {name}-{ver}".format(name=porter.get_module_name(), ver=porter.get_version()))
     print("")
     print("%build")
-    print("%py3_build")
+    porter.prepare_pkg_build()
     print("")
     print("%install")
-    print("%py3_install")
+    porter.prepare_pkg_install()
     print("install -d -m755 %{buildroot}/%{_pkgdocdir}")
     print("if [ -d doc ]; then cp -arf doc %{buildroot}/%{_pkgdocdir}; fi")
     print("if [ -d docs ]; then cp -arf docs %{buildroot}/%{_pkgdocdir}; fi")
@@ -428,14 +475,9 @@ def build_spec(resp, output):
     print("mv %{buildroot}/filelist.lst .")
     print("mv %{buildroot}/doclist.lst .")
     print("")
-    print("%files -n python3-{name} -f filelist.lst".format(name=resp["info"]["name"]))
-#   print("%{python3_sitelib}/*.egg-info/")
-#   print("%{python3_sitelib}/" + resp["info"]["name"])
+    print("%files -n {name} -f filelist.lst".format(name=porter.get_pkg_name()))
 
-    if build_noarch:
-        print("%dir %{python3_sitelib}/*")
-    else:
-        print("%dir %{python3_sitearch}/*")
+    porter.prepare_pkg_files()
 
     print("")
     print("%files help -f doclist.lst")
@@ -451,10 +493,7 @@ def build_spec(resp, output):
     return build_req_list
 
 
-if __name__ == "__main__":
-
-    dft_root_path=os.path.join(str(Path.home()))
-
+def do_args(root):
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-s", "--spec", help="Create spec file", action="store_true")
@@ -466,39 +505,52 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--path", help="indicated path to store files", type=str, default=os.getcwd())
     parser.add_argument("-j", "--json", help="Get Package JSON info", action="store_true")
     parser.add_argument("-o", "--output", help="Output to file", type=str, default="")
+    parser.add_argument("-t", "--type", help="Build module type : python, perl...", type=str, default="python")
     parser.add_argument("pkg", type=str, help="The Python Module Name")
+
+    return parser
+
+def porter_creator(t_str, pkg):
+    if (t_str == "python"):
+        return PyPorter(pkg)
+
+    return None
+
+
+
+if __name__ == "__main__":
+
+    dft_root_path=os.path.join(str(Path.home()))
+
+    parser = do_args(dft_root_path)
+
     args = parser.parse_args()
 
-    response = get_pkg_json(args.pkg)
-    if (response == ""):
-        print("Get %s module json info failed\n" % args.pkg)
+    porter = porter_creator(args.type, args.pkg)
+    if (porter is None):
+        print("Type %s is not supported now\n" % args.type)
         sys.exit(1)
 
+
     if (args.requires):
-        reqlist = get_build_requires(response)
+        reqlist = porter.get_build_requires()
         if reqlist is not None:
             for req in reqlist:
                 print(req)
-        sys.exit(0)
-
-    if (args.spec):
-        build_spec(response, args.output)
-
-    if (args.build):
-        ret = build_rpm(response, args.rootpath)
+    elif (args.spec):
+        build_spec(porter, args.output)
+    elif (args.build):
+        ret = build_rpm(porter, args.rootpath)
         if ret != "":
             print("build failed : BuildRequire : %s\n" % ret)
             sys.exit(1)
-
-    if (args.buildinstall):
-        ret = build_install_rpm(response, args.rootpath)
+    elif (args.buildinstall):
+        ret = build_install_rpm(porter, args.rootpath)
         if ret != "":
             print("Build & install failed\n")
             sys.exit(1)
-
-    if (args.download):
-        download_source(response, args.path)
-
-    if (args.json):
-        store_json(response, args.pkg, args.path)
+    elif (args.download):
+        download_source(porter, args.path)
+    elif (args.json):
+        porter.store_json(args.path)
 
