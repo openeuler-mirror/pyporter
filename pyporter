@@ -481,7 +481,7 @@ def build_spec(porter, output):
 
     print("")
     print("%files help -f doclist.lst")
-    print("%{_pkgdocdir}")
+    print("%{_docdir}/*")
     print("")
     print("%changelog")
     date_str = datetime.date.today().strftime("%a %b %d %Y")
