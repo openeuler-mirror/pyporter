@@ -30,6 +30,7 @@ import subprocess
 import os
 import platform
 from pathlib import Path
+import hashlib
 # python3-wget is not default available on openEuler yet.
 # import wget  
 
@@ -107,16 +108,26 @@ class PyPorter:
                 return ks[2].strip()
         return ""
 
-    def get_source_url(self):
+    def get_source_info(self):
         """
-        return URL for source file for the latest version
-        return "" in errors
+        return a map of source filename, md5 of source, source url
+        return None in errors
         """
         v = self.__json["info"]["version"]
         rs = self.__json["releases"][v]
         for r in rs:
             if r["packagetype"] == "sdist":
-                return r["url"]
+                return {"filename": r["filename"], "md5": r["md5_digest"], "url": r["url"]}
+        return None
+
+    def get_source_url(self):
+        """
+        return URL for source file for the latest version
+        return "" in errors
+        """
+        s_info = self.get_source_info()
+        if s_info:
+            return s_info.get("url")
         return ""
 
     def get_requires(self):
@@ -289,7 +300,20 @@ def download_source(porter, tgtpath):
     if (os.path.exists(tgtpath) == False):
         print("download path %s does not exist\n", tgtpath)
         return False
-    s_url = porter.get_source_url()
+    s_info = porter.get_source_info()
+    if s_info is None:
+        print("analyze source info error")
+        return False
+    s_url = s_info.get("url")
+    s_path = os.path.join(tgtpath, s_info.get("filename"))
+    if os.path.exists(s_path):
+        with open(s_path, 'rb') as f:
+            md5obj = hashlib.md5()
+            md5obj.update(f.read())
+            _hash = str(md5obj.hexdigest()).lower()
+            if s_info.get("md5") == _hash:
+                print("same source file exists, skip")
+                return True
     return subprocess.call(["wget", s_url, "-P", tgtpath])
 
 
