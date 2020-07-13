@@ -2,7 +2,7 @@
 """
 This is a packager bot for python modules from pypi.org
 """
-#******************************************************************************
+# ******************************************************************************
 # Copyright (c) Huawei Technologies Co., Ltd. 2020-2020. All rights reserved.
 # licensed under the Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,26 +31,27 @@ import os
 import platform
 from pathlib import Path
 import hashlib
+
 # python3-wget is not default available on openEuler yet.
 # import wget  
 
 
 json_file_template = '{pkg_name}.json'
-name_tag_template    = 'Name:\t\t{pkg_name}' 
-summary_tag_template = 'Summary:\t{pkg_sum}' 
-version_tag_template = 'Version:\t{pkg_ver}' 
+name_tag_template = 'Name:\t\t{pkg_name}'
+summary_tag_template = 'Summary:\t{pkg_sum}'
+version_tag_template = 'Version:\t{pkg_ver}'
 release_tag_template = 'Release:\t1'
-license_tag_template = 'License:\t{pkg_lic}' 
-home_tag_template = 'URL:\t\t{pkg_home}' 
+license_tag_template = 'License:\t{pkg_lic}'
+home_tag_template = 'URL:\t\t{pkg_home}'
 source_tag_template = 'Source0:\t{pkg_source}'
 
 buildreq_tag_template = 'BuildRequires:\t{req}'
+
 
 # TODO List
 # 1. Need a reliable way to get description of module .. Partially done
 # 2. requires_dist has some dependency restirction, need to present
 # 3. dependency outside python (i.e. pycurl depends on libcurl) doesn't exist in pipy
-
 
 
 class PyPorter:
@@ -60,7 +61,7 @@ class PyPorter:
     __module_name = ""
     __spec_name = ""
     __pkg_name = ""
-    
+
     def __init__(self, pkg):
         """
         receive json from pypi.org
@@ -69,15 +70,14 @@ class PyPorter:
         resp = ""
         with urllib.request.urlopen(url) as u:
             self.__json = json.loads(u.read().decode('utf-8'))
-        if (self.__json is not None):
+        if self.__json is not None:
             self.__module_name = self.__json["info"]["name"]
             self.__spec_name = "python-" + self.__module_name
             self.__pkg_name = "python3-" + self.__module_name
             self.__build_noarch = self.__get_buildarch()
 
-
     def get_spec_name(self):
-        return self.__spec_name 
+        return self.__spec_name
 
     def get_module_name(self):
         return self.__module_name
@@ -87,7 +87,7 @@ class PyPorter:
 
     def get_version(self):
         return self.__json["info"]["version"]
-    
+
     def get_summary(self):
         return self.__json["info"]["summary"]
 
@@ -141,13 +141,6 @@ class PyPorter:
             idx = r.find(";")
             mod = transform_module_name(r[:idx])
             print("Requires:\t" + mod)
-        if self.__json["info"]["license"] != "":
-            return self.__json["info"]["license"]
-        for k in self.__json["info"]["classifiers"]:
-            if k.startswith("License"):
-                ks = k.split("::")
-                return ks[2].strip()
-        return ""
 
     def __get_buildarch(self):
         """
@@ -194,7 +187,7 @@ class PyPorter:
             if paragraph >= 2:
                 del res[-1]
                 return "\n".join(res)
-        if res != []:
+        if res:
             return "\n".join(res)
         elif paragraph == 0:
             return self.__json["info"]["description"]
@@ -202,12 +195,12 @@ class PyPorter:
             return self.__json["info"]["summary"]
 
     def get_build_requires(self):
-        req_list=[]
+        req_list = []
         rds = self.__json["info"]["requires_dist"]
         if rds is not None:
             for rp in rds:
                 br = refine_requires(rp)
-                if (br == ""):
+                if br == "":
                     continue
                 #
                 # Do not output BuildRequires: 
@@ -215,36 +208,38 @@ class PyPorter:
                 # than can help to build all rpm withoud trap into 
                 # build dependency nightmare
                 #
-                #print(buildreq_tag_template.format(req=br))
-                name=str.lstrip(br).split(" ")
+                # print(buildreq_tag_template.format(req=br))
+                name = str.lstrip(br).split(" ")
                 req_list.append(name[0])
         return req_list
 
     def prepare_build_requires(self):
         print(buildreq_tag_template.format(req='python3-devel'))
         print(buildreq_tag_template.format(req='python3-setuptools'))
-        if (self.__build_noarch == False):
+        if not self.__build_noarch:
             print(buildreq_tag_template.format(req='python3-cffi'))
             print(buildreq_tag_template.format(req='gcc'))
             print(buildreq_tag_template.format(req='gdb'))
 
     def prepare_pkg_build(self):
         print("%py3_build")
+
     def prepare_pkg_install(self):
         print("%py3_install")
+
     def prepare_pkg_files(self):
         if self.__build_noarch:
             print("%dir %{python3_sitelib}/*")
         else:
             print("%dir %{python3_sitearch}/*")
-    
+
     def store_json(self, spath):
         """
         save json file
         """
         fname = json_file_template.format(pkg_name=self.__pkg_name)
         json_file = os.path.join(spath, fname)
-        
+
         # if file exist, do nothing 
         if path.exists(json_file) and path.isfile(json_file):
             with open(json_file, 'r') as f:
@@ -267,7 +262,7 @@ def transform_module_name(n):
     if ns[0].startswith("python-"):
         ns[0] = ns[0].replace("python-", "python3-")
     else:
-        ns[0] = "python3-" + ns[0] 
+        ns[0] = "python3-" + ns[0]
         if ns[0].find("/") != -1 or ns[0].find(".") != -1:
             return ""
     """
@@ -297,7 +292,7 @@ def download_source(porter, tgtpath):
     """
     download source file from url, and save it to target path
     """
-    if (os.path.exists(tgtpath) == False):
+    if not os.path.exists(tgtpath):
         print("download path %s does not exist\n", tgtpath)
         return False
     s_info = porter.get_source_info()
@@ -321,17 +316,17 @@ def prepare_rpm_build_env(root):
     """
     prepare environment for rpmbuild
     """
-    if (os.path.exists(root) == False):
+    if not os.path.exists(root):
         print("Root path %s does not exist\n" & buildroot)
         return ""
 
     buildroot = os.path.join(root, "rpmbuild")
-    if (os.path.exists(buildroot) == False):
+    if not os.path.exists(buildroot):
         os.mkdir(buildroot)
 
     for sdir in ['SPECS', 'BUILD', 'SOURCES', 'SRPMS', 'RPMS', 'BUILDROOT']:
         bpath = os.path.join(buildroot, sdir)
-        if (os.path.exists(bpath) == False):
+        if not os.path.exists(bpath):
             os.mkdir(bpath)
 
     return buildroot
@@ -356,6 +351,7 @@ def try_pip_install_package(pkg):
     #
     return True
 
+
 def package_installed(pkg):
     print(pkg)
     ret = subprocess.call(["rpm", "-qi", pkg])
@@ -373,6 +369,7 @@ def dependencies_ready(req_list):
     #        return req
     return ""
 
+
 def build_package(specfile):
     """
     build rpm package with rpmbuild
@@ -383,28 +380,29 @@ def build_package(specfile):
 
 def build_install_rpm(porter, rootpath):
     ret = build_rpm(porter, rootpath)
-    if (ret != ""):
+    if ret != "":
         return ret
 
     arch = "noarch"
-    if (porter.is_build_noarch()):
+    if porter.is_build_noarch():
         arch = "noarch"
     else:
         arch = platform.machine()
 
     pkgname = os.path.join(rootpath, "rpmbuild", "RPMS", arch, porter.get_pkg_name() + "*")
     ret = subprocess.call(["rpm", "-ivh", pkgname])
-    if (ret != 0):
+    if ret != 0:
         return "Install failed\n"
 
     return ""
+
 
 def build_rpm(porter, rootpath):
     """
     full process to build rpm
     """
-    buildroot = prepare_rpm_build_env(rootpath) 
-    if (buildroot == ""):
+    buildroot = prepare_rpm_build_env(rootpath)
+    if buildroot == "":
         return False
 
     specfile = os.path.join(buildroot, "SPECS", porter.get_spec_name() + ".spec")
@@ -427,11 +425,11 @@ def build_spec(porter, output):
     print out the spec file
     """
     if os.path.isdir(output):
-        output = os.path.join(output, porter.get_spec_name() + ".spec") 
+        output = os.path.join(output, porter.get_spec_name() + ".spec")
     tmp = sys.stdout
-    if (output != ""):
+    if output != "":
         sys.stdout = open(output, 'w+')
-   
+
     print("%global _empty_manifest_terminate_build 0")
     print(name_tag_template.format(pkg_name=porter.get_spec_name()))
     print(version_tag_template.format(pkg_ver=porter.get_version()))
@@ -454,7 +452,7 @@ def build_spec(porter, output):
 
     porter.prepare_build_requires()
 
-    build_req_list=porter.get_build_requires()
+    build_req_list = porter.get_build_requires()
 
     print("%description -n " + porter.get_pkg_name())
     print(porter.get_description())
@@ -534,47 +532,45 @@ def do_args(root):
 
     return parser
 
+
 def porter_creator(t_str, pkg):
-    if (t_str == "python"):
+    if t_str == "python":
         return PyPorter(pkg)
 
     return None
 
 
-
 if __name__ == "__main__":
 
-    dft_root_path=os.path.join(str(Path.home()))
+    dft_root_path = os.path.join(str(Path.home()))
 
     parser = do_args(dft_root_path)
 
     args = parser.parse_args()
 
     porter = porter_creator(args.type, args.pkg)
-    if (porter is None):
+    if porter is None:
         print("Type %s is not supported now\n" % args.type)
         sys.exit(1)
 
-
-    if (args.requires):
-        reqlist = porter.get_build_requires()
-        if reqlist is not None:
-            for req in reqlist:
+    if args.requires:
+        req_list = porter.get_build_requires()
+        if req_list is not None:
+            for req in req_list:
                 print(req)
-    elif (args.spec):
+    elif args.spec:
         build_spec(porter, args.output)
-    elif (args.build):
+    elif args.build:
         ret = build_rpm(porter, args.rootpath)
         if ret != "":
             print("build failed : BuildRequire : %s\n" % ret)
             sys.exit(1)
-    elif (args.buildinstall):
+    elif args.buildinstall:
         ret = build_install_rpm(porter, args.rootpath)
         if ret != "":
             print("Build & install failed\n")
             sys.exit(1)
-    elif (args.download):
+    elif args.download:
         download_source(porter, args.path)
-    elif (args.json):
+    elif args.json:
         porter.store_json(args.path)
-
