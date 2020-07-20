@@ -27,3 +27,10 @@ pyporter <package> -s -b -d -o python-<package>.spec
 2.  Create Feat_xxx branch
 3.  Commit your code
 4.  Create Pull Request
+
+#### How to create a rpm file
+
+1.  Create spec file, pyporter -s XXX
+2.  Get required python modules, pyporter -R XXX
+3.  Build and Install rpm package, pyporter -B XXX
+4.  For more detail, pyporter -h
