@@ -139,8 +139,9 @@ class PyPorter:
             return
         for r in rs:
             idx = r.find(";")
-            mod = transform_module_name(r[:idx])
-            print("Requires:\t" + mod)
+            if idx != -1:
+                r = r[:idx]
+            print("Requires:\t" + transform_module_name(r))
 
     def __get_buildarch(self):
         """
