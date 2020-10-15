@@ -19,7 +19,7 @@ Install below software before using this tool
 pyporter is a tool to create spec file and create rpm for python modules
 For more details, please use pyporter -h
 
-pyporter <package> -s -b -d -o python-<package>.spec
+pyporter &lt;package&gt; -s -b -d -o python-&lt;package&gt;.spec
 
 #### Contribution
 
