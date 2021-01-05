@@ -62,7 +62,7 @@ class PyPorter:
     __spec_name = ""
     __pkg_name = ""
 
-    def __init__(self, pkg):
+    def __init__(self, arch, pkg):
         """
         receive json from pypi.org
         """
@@ -75,6 +75,9 @@ class PyPorter:
             self.__spec_name = "python-" + self.__module_name
             self.__pkg_name = "python3-" + self.__module_name
             self.__build_noarch = self.__get_buildarch()
+
+        if arch:
+            self.__build_noarch = False
 
     def get_spec_name(self):
         return self.__spec_name
@@ -529,14 +532,15 @@ def do_args(root):
     parser.add_argument("-j", "--json", help="Get Package JSON info", action="store_true")
     parser.add_argument("-o", "--output", help="Output to file", type=str, default="")
     parser.add_argument("-t", "--type", help="Build module type : python, perl...", type=str, default="python")
+    parser.add_argument("-a", "--arch", help="Build module with arch", action="store_true")
     parser.add_argument("pkg", type=str, help="The Python Module Name")
 
     return parser
 
 
-def porter_creator(t_str, pkg):
+def porter_creator(t_str, arch, pkg):
     if t_str == "python":
-        return PyPorter(pkg)
+        return PyPorter(arch, pkg)
 
     return None
 
@@ -549,7 +553,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    porter = porter_creator(args.type, args.pkg)
+    porter = porter_creator(args.type, args.arch, args.pkg)
     if porter is None:
         print("Type %s is not supported now\n" % args.type)
         sys.exit(1)
