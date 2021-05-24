@@ -511,7 +511,7 @@ def build_spec(porter, output):
     print("")
     print("%changelog")
     date_str = datetime.date.today().strftime("%a %b %d %Y")
-    print("* {today} Python_Bot <Python_Bot@openeuler.org>".format(today=date_str))
+    print("* {today} Python_Bot <Python_Bot@openeuler.org> - {version}-1".format(today=date_str, version=porter.get_version()))
     print("- Package Spec generated")
 
     sys.stdout = tmp
