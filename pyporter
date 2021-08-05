@@ -475,7 +475,7 @@ def build_spec(porter, output):
     print("")
     print("%install")
     porter.prepare_pkg_install()
-    print("install -d -m644 %{buildroot}/%{_pkgdocdir}")
+    print("install -d -m755 %{buildroot}/%{_pkgdocdir}")
     print("if [ -d doc ]; then cp -arf doc %{buildroot}/%{_pkgdocdir}; fi")
     print("if [ -d docs ]; then cp -arf docs %{buildroot}/%{_pkgdocdir}; fi")
     print("if [ -d example ]; then cp -arf example %{buildroot}/%{_pkgdocdir}; fi")
