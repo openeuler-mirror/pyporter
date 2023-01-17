@@ -33,8 +33,6 @@ from pathlib import Path
 import hashlib
 
 # python3-wget is not default available on openEuler yet.
-# import wget  
-
 
 json_file_template = '{pkg_name}.json'
 name_tag_template = 'Name:\t\t{pkg_name}'
@@ -95,7 +93,20 @@ class PyPorter:
         return self.__json["info"]["summary"]
 
     def get_home(self):
-        return self.__json["info"]["project_urls"]["Homepage"]
+        # try to get homepage from project_urls
+        # or else try with project_url, home_page, package_url
+        try:
+            home = self.__json["info"]["project_urls"]["Homepage"]
+        except:
+            home = (
+                self.__json["info"]["project_url"]
+                or self.__json["info"]["home_page"]
+                or self.__json["info"]["package_url"]
+            )
+        if home is None:
+            print("Cant find home page url")
+            sys.exit(1)
+        return home
 
     def get_license(self):
         """
@@ -519,7 +530,7 @@ def build_spec(porter, output):
     return build_req_list
 
 
-def do_args(root):
+def do_args(dft_root_path):
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-s", "--spec", help="Create spec file", action="store_true")
@@ -545,8 +556,7 @@ def porter_creator(t_str, arch, pkg):
     return None
 
 
-if __name__ == "__main__":
-
+def main():
     dft_root_path = os.path.join(str(Path.home()))
 
     parser = do_args(dft_root_path)
@@ -579,3 +589,6 @@ if __name__ == "__main__":
         download_source(porter, args.path)
     elif args.json:
         porter.store_json(args.path)
+
+if __name__ == "__main__":
+    main()
