@@ -6,6 +6,7 @@ pyporter.egg-info
 .tox
 .venv
 *.egg
+*.pyc
 *.swp
 *~
 .cache
