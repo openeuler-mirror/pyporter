@@ -54,20 +54,33 @@ buildreq_tag_template = 'BuildRequires:\t{req}'
 
 class PyPorter:
     __url_template = 'https://pypi.org/pypi/{pkg_name}/json'
+    __url_template_with_ver = 'https://pypi.org/pypi/{pkg_name}/{pkg_ver}/json'
     __build_noarch = True
     __json = None
     __module_name = ""
     __spec_name = ""
     __pkg_name = ""
 
-    def __init__(self, arch, pkg):
+    def __init__(self, arch, pkg, ver=""):
         """
         receive json from pypi.org
         """
-        url = self.__url_template.format(pkg_name=pkg)
+        if not ver:
+            ver = "latest"
+            url = self.__url_template.format(pkg_name=pkg)
+        else:
+            url = self.__url_template_with_ver\
+                .format(pkg_name=pkg, pkg_ver=ver)
         resp = ""
-        with urllib.request.urlopen(url) as u:
-            self.__json = json.loads(u.read().decode('utf-8'))
+        try:
+            with urllib.request.urlopen(url) as u:
+                self.__json = json.loads(u.read().decode('utf-8'))
+        except urllib.error.HTTPError as err:
+            if err.code == 404:
+                print(f"The package:{pkg} ver:{ver} does not existed on pypi")
+                sys.exit(1)
+            else:
+                raise
         if self.__json is not None:
             self.__module_name = self.__json["info"]["name"]
             self.__spec_name = "python-" + self.__module_name
@@ -127,12 +140,25 @@ class PyPorter:
         return a map of source filename, md5 of source, source url
         return None in errors
         """
-        v = self.__json["info"]["version"]
-        rs = self.__json["releases"][v]
+        rs = self.get_releases()
         for r in rs:
             if r["packagetype"] == "sdist":
                 return {"filename": r["filename"], "md5": r["md5_digest"], "url": r["url"]}
         return None
+
+    def get_releases(self):
+        """
+        The https://pypi.org/pypi/{pkg}/json API contains both "releases" and "urls" keys
+        The version specified https://pypi.org/pypi/{pkg}/{ver}/json API contains only "urls"
+        If user specified a version, we need grab release info from "urls"
+        """
+        v = self.get_version()
+        if "releases" in self.__json.keys():
+            return self.__json["releases"][v]
+        elif "urls" in self.__json.keys():
+            return self.__json["urls"]
+        else:
+            return []
 
     def get_source_url(self):
         """
@@ -162,8 +188,7 @@ class PyPorter:
         if this module has a prebuild package for amd64, then it is arch dependent.
         print BuildArch tag if needed.
         """
-        v = self.__json["info"]["version"]
-        rs = self.__json["releases"][v]
+        rs = self.get_releases()
         for r in rs:
             if r["packagetype"] == "bdist_wheel":
                 if r["url"].find("amd64") != -1:
@@ -533,6 +558,7 @@ def build_spec(porter, output):
 def do_args(dft_root_path):
     parser = argparse.ArgumentParser()
 
+    parser.add_argument("-v", "--pkgversion", help="Specify the pypi package version", type=str, default="")
     parser.add_argument("-s", "--spec", help="Create spec file", action="store_true")
     parser.add_argument("-R", "--requires", help="Get required python modules", action="store_true")
     parser.add_argument("-b", "--build", help="Build rpm package", action="store_true")
@@ -549,9 +575,9 @@ def do_args(dft_root_path):
     return parser
 
 
-def porter_creator(t_str, arch, pkg):
+def porter_creator(t_str, arch, pkg, ver=""):
     if t_str == "python":
-        return PyPorter(arch, pkg)
+        return PyPorter(arch, pkg, ver)
 
     return None
 
@@ -563,7 +589,7 @@ def main():
 
     args = parser.parse_args()
 
-    porter = porter_creator(args.type, args.arch, args.pkg)
+    porter = porter_creator(args.type, args.arch, args.pkg, args.pkgversion)
     if porter is None:
         print("Type %s is not supported now\n" % args.type)
         sys.exit(1)
