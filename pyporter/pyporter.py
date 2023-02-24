@@ -61,7 +61,7 @@ class PyPorter:
     __spec_name = ""
     __pkg_name = ""
 
-    def __init__(self, arch, pkg, ver=""):
+    def __init__(self, arch, pkg, ver="", mirror=""):
         """
         receive json from pypi.org
         """
@@ -72,6 +72,7 @@ class PyPorter:
             url = self.__url_template_with_ver\
                 .format(pkg_name=pkg, pkg_ver=ver)
         resp = ""
+        self.mirror = mirror if mirror == "" or mirror[-1] != '/' else mirror[:-1]
         try:
             with urllib.request.urlopen(url) as u:
                 self.__json = json.loads(u.read().decode('utf-8'))
@@ -167,7 +168,10 @@ class PyPorter:
         """
         s_info = self.get_source_info()
         if s_info:
-            return s_info.get("url")
+            surl = s_info.get("url")
+            if self.mirror:
+                surl = surl.replace("https://files.pythonhosted.org", self.mirror)
+            return surl
         return ""
 
     def get_requires(self):
@@ -559,6 +563,8 @@ def do_args(dft_root_path):
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-v", "--pkgversion", help="Specify the pypi package version", type=str, default="")
+    parser.add_argument("-m", "--mirror", help="Specify the pypi mirror, should be a url which contain pypi packages",
+                        type=str, default="")
     parser.add_argument("-s", "--spec", help="Create spec file", action="store_true")
     parser.add_argument("-R", "--requires", help="Get required python modules", action="store_true")
     parser.add_argument("-b", "--build", help="Build rpm package", action="store_true")
@@ -575,9 +581,9 @@ def do_args(dft_root_path):
     return parser
 
 
-def porter_creator(t_str, arch, pkg, ver=""):
+def porter_creator(t_str, arch, pkg, ver="", mirror=""):
     if t_str == "python":
-        return PyPorter(arch, pkg, ver)
+        return PyPorter(arch, pkg, ver, mirror)
 
     return None
 
@@ -589,7 +595,7 @@ def main():
 
     args = parser.parse_args()
 
-    porter = porter_creator(args.type, args.arch, args.pkg, args.pkgversion)
+    porter = porter_creator(args.type, args.arch, args.pkg, args.pkgversion, args.mirror)
     if porter is None:
         print("Type %s is not supported now\n" % args.type)
         sys.exit(1)
