@@ -23,14 +23,25 @@ from pprint import pprint
 from os import path
 import json
 import sys
+import socket
 import re
 import datetime
 import argparse
 import subprocess
 import os
 import platform
+import logging
 from pathlib import Path
 import hashlib
+from retry import retry_call
+
+# init logging
+logger = logging.getLogger()
+
+handler = logging.StreamHandler(sys.stdout)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 # python3-wget is not default available on openEuler yet.
 
@@ -61,7 +72,12 @@ class PyPorter:
     __spec_name = ""
     __pkg_name = ""
 
-    def __init__(self, arch, pkg, ver="", mirror=""):
+    def __init__(self, args):
+        self.mirror = mirror if mirror == "" or mirror[-1] != '/' else mirror[:-1]
+        retry_call(self.do_init, [args.arch, args.pkg, args.pkgversion, args.mirror],
+                   tries=args.retry, delay=args.delay)
+
+    def do_init(self, arch, pkg, ver=""):
         """
         receive json from pypi.org
         """
@@ -72,13 +88,12 @@ class PyPorter:
             url = self.__url_template_with_ver\
                 .format(pkg_name=pkg, pkg_ver=ver)
         resp = ""
-        self.mirror = mirror if mirror == "" or mirror[-1] != '/' else mirror[:-1]
         try:
-            with urllib.request.urlopen(url) as u:
+            with urllib.request.urlopen(url, timeout=30) as u:
                 self.__json = json.loads(u.read().decode('utf-8'))
         except urllib.error.HTTPError as err:
             if err.code == 404:
-                print(f"The package:{pkg} ver:{ver} does not existed on pypi")
+                logger.error(f"The package:{pkg} ver:{ver} does not existed on pypi")
                 sys.exit(1)
             else:
                 raise
@@ -118,7 +133,7 @@ class PyPorter:
                 or self.__json["info"]["package_url"]
             )
         if home is None:
-            print("Cant find home page url")
+            logger.error("Cant find home page url")
             sys.exit(1)
         return home
 
@@ -388,7 +403,7 @@ def try_pip_install_package(pkg):
         ret = subprocess.call(["pip3", "install", "--user", pip_name[0]])
 
     if ret != 0:
-        print("%s can not be installed correctly, Fix it later, go ahead to do building..." % pip_name)
+        logger.error("%s can not be installed correctly, Fix it later, go ahead to do building..." % pip_name)
 
     #
     # TODO: try to build anyway, fix it later
@@ -454,7 +469,7 @@ def build_rpm(porter, rootpath):
     req_list = build_spec(porter, specfile)
     ret = dependencies_ready(req_list)
     if ret != "":
-        print("%s can not be installed automatically, Please handle it" % ret)
+        logger.error("%s can not be installed automatically, Please handle it" % ret)
         return ret
 
     download_source(porter, os.path.join(buildroot, "SOURCES"))
@@ -563,6 +578,9 @@ def do_args(dft_root_path):
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-v", "--pkgversion", help="Specify the pypi package version", type=str, default="")
+    parser.add_argument("--retry", help="Specify the retry times when fetching metadata(default=3)",
+                        type=int, default=3)
+    parser.add_argument("--delay", help="Specify the delay time between two retries(default 2s)", type=int, default=2)
     parser.add_argument("-m", "--mirror", help="Specify the pypi mirror, should be a url which contain pypi packages",
                         type=str, default="")
     parser.add_argument("-s", "--spec", help="Create spec file", action="store_true")
@@ -581,9 +599,9 @@ def do_args(dft_root_path):
     return parser
 
 
-def porter_creator(t_str, arch, pkg, ver="", mirror=""):
-    if t_str == "python":
-        return PyPorter(arch, pkg, ver, mirror)
+def porter_creator(args):
+    if args.type == "python":
+        return PyPorter(args)
 
     return None
 
@@ -595,9 +613,9 @@ def main():
 
     args = parser.parse_args()
 
-    porter = porter_creator(args.type, args.arch, args.pkg, args.pkgversion, args.mirror)
+    porter = porter_creator(args)
     if porter is None:
-        print("Type %s is not supported now\n" % args.type)
+        logger.error("Type %s is not supported now" % args.type)
         sys.exit(1)
 
     if args.requires:
@@ -610,12 +628,12 @@ def main():
     elif args.build:
         ret = build_rpm(porter, args.rootpath)
         if ret != "":
-            print("build failed : BuildRequire : %s\n" % ret)
+            logger.error("build failed : BuildRequire : %s" % ret)
             sys.exit(1)
     elif args.buildinstall:
         ret = build_install_rpm(porter, args.rootpath)
         if ret != "":
-            print("Build & install failed\n")
+            logger.error("Build & install failed\n")
             sys.exit(1)
     elif args.download:
         download_source(porter, args.path)

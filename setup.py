@@ -41,5 +41,8 @@ setuptools.setup(
         'console_scripts': [
             'pyporter = pyporter.pyporter:main',
         ]
-    }
+    },
+    install_requires=[
+        "retry2"
+    ]
 )
