@@ -73,8 +73,9 @@ class PyPorter:
     __pkg_name = ""
 
     def __init__(self, args):
+        mirror = args.mirror
         self.mirror = mirror if mirror == "" or mirror[-1] != '/' else mirror[:-1]
-        retry_call(self.do_init, [args.arch, args.pkg, args.pkgversion, args.mirror],
+        retry_call(self.do_init, [args.arch, args.pkg, args.pkgversion],
                    tries=args.retry, delay=args.delay)
 
     def do_init(self, arch, pkg, ver=""):
@@ -275,6 +276,7 @@ class PyPorter:
     def prepare_build_requires(self):
         print(buildreq_tag_template.format(req='python3-devel'))
         print(buildreq_tag_template.format(req='python3-setuptools'))
+        print(buildreq_tag_template.format(req='python3-pip'))
         if not self.__build_noarch:
             print(buildreq_tag_template.format(req='python3-cffi'))
             print(buildreq_tag_template.format(req='gcc'))
@@ -376,7 +378,7 @@ def prepare_rpm_build_env(root):
     prepare environment for rpmbuild
     """
     if not os.path.exists(root):
-        print("Root path %s does not exist\n" & buildroot)
+        print("Root path %s does not exist\n" & root)
         return ""
 
     buildroot = os.path.join(root, "rpmbuild")
