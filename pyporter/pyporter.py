@@ -120,7 +120,8 @@ class PyPorter:
         return self.__json["info"]["version"]
 
     def get_summary(self):
-        return self.__json["info"]["summary"]
+        summary = self.__json["info"]["summary"]
+        return summary if summary else "please add a summary manually as the author left a blank one"
 
     def get_home(self):
         # try to get homepage from project_urls
