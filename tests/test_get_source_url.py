@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import MagicMock
 from pyporter.pyporter import porter_creator
 
 SRC_URL = "https://files.pythonhosted.org/packages/36/62/7cda20a9bd8c52bf47c6f1cf7e"\
@@ -9,11 +10,25 @@ MIRROR_URL = "https://mirrors.aliyun.com/pypi/packages/36/62/7cda20a9bd8c52bf47c
 
 class TestValidSource(unittest.TestCase):
     def test_no_mirror(self):
-        p = porter_creator('python', None, "oic", "1.5.0")
+        args = MagicMock()
+        args.configure_mock(type="python")
+        args.pkg = "oic"
+        args.pkgversion = "1.5.0"
+        args.arch = None
+        args.mirror = ""
+
+        p = porter_creator(args)
         self.assertEqual(p.get_source_url(), SRC_URL)
 
     def test_valid_mirror(self):
-        p = porter_creator('python', None, "oic", "1.5.0", "https://mirrors.aliyun.com/pypi")
+        args = MagicMock()
+        args.configure_mock(type="python")
+        args.pkg = "oic"
+        args.pkgversion = "1.5.0"
+        args.arch = None
+        args.mirror = "https://mirrors.aliyun.com/pypi"
+
+        p = porter_creator(args)
         self.assertEqual(p.get_source_url(), MIRROR_URL)
 
 

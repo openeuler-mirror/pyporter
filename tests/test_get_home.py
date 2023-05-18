@@ -16,8 +16,15 @@ class TestNoHomepageNone(unittest.TestCase):
         cm.read.return_value = self.data
         cm.__enter__.return_value = cm
         m.return_value = cm
+        
+        args = MagicMock()
+        args.configure_mock(type="python")
+        args.pkg = "oic"
+        args.pkgversion = "1.5.0"
+        args.arch = None
+        args.mirror = ""
 
-        p = porter_creator('python', None, None)
+        p = porter_creator(args)
         self.assertRaises(SystemExit, p.get_home)
 
     def tearDown(self):
@@ -36,7 +43,14 @@ class TestNoHomepageUseProjectUrl(unittest.TestCase):
         cm.__enter__.return_value = cm
         m.return_value = cm
 
-        p = porter_creator('python', None, None)
+        args = MagicMock()
+        args.configure_mock(type="python")
+        args.pkg = "oic"
+        args.pkgversion = "1.5.0"
+        args.arch = None
+        args.mirror = ""
+
+        p = porter_creator(args)
         self.assertEqual("test_project_url", p.get_home())
 
     def tearDown(self):
@@ -55,7 +69,14 @@ class TestNoHomepageUsePackageUrl(unittest.TestCase):
         cm.__enter__.return_value = cm
         m.return_value = cm
 
-        p = porter_creator('python', None, None)
+        args = MagicMock()
+        args.configure_mock(type="python")
+        args.pkg = "oic"
+        args.pkgversion = "1.5.0"
+        args.arch = None
+        args.mirror = ""
+
+        p = porter_creator(args)
         self.assertEqual("test_package_url", p.get_home())
 
     def tearDown(self):
@@ -74,7 +95,14 @@ class TestNoHomepageUseHomePage(unittest.TestCase):
         cm.__enter__.return_value = cm
         m.return_value = cm
 
-        p = porter_creator('python', None, None)
+        args = MagicMock()
+        args.configure_mock(type="python")
+        args.pkg = "oic"
+        args.pkgversion = "1.5.0"
+        args.arch = None
+        args.mirror = ""
+
+        p = porter_creator(args)
         self.assertEqual("test_home_page", p.get_home())
 
     def tearDown(self):

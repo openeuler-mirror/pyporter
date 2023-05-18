@@ -113,6 +113,22 @@ class PyPorter:
     def get_module_name(self):
         return self.__module_name
 
+    def get_archive_name(self):
+        s_info = self.get_source_info()
+        if s_info:
+            # filename is {archive_name}-{version}.{suffix}
+            filename = s_info.get("filename")
+            if not filename:
+                return ""
+            filename = (
+                filename[: -len(".tar.gz")]
+                if "tar.gz" in filename
+                else filename[: -len(".zip")]
+            )
+            v = self.get_version()
+            return filename.replace("-" + v, "")
+        return ""
+
     def get_pkg_name(self):
         return self.__pkg_name
 
@@ -526,7 +542,7 @@ def build_spec(porter, output):
     print(porter.get_description())
     print("")
     print("%prep")
-    print("%autosetup -n {name}-{ver}".format(name=porter.get_module_name(), ver=porter.get_version()))
+    print("%autosetup -n {name}-{ver}".format(name=porter.get_archive_name(), ver=porter.get_version()))
     print("")
     print("%build")
     porter.prepare_pkg_build()
