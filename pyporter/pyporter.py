@@ -160,13 +160,14 @@ class PyPorter:
         By default, the license info can be achieved from json["info"]["license"]
         in rare cases it doesn't work.
         We fall back to json["info"]["classifiers"], it looks like License :: OSI Approved :: BSD Clause
+        or License :: Public Domain, seems like the license is at the end
         """
         if self.__json["info"]["license"] != "":
             return self.__json["info"]["license"]
         for k in self.__json["info"]["classifiers"]:
             if k.startswith("License"):
                 ks = k.split("::")
-                return ks[2].strip()
+                return ks[-1].strip()
         return ""
 
     def get_source_info(self):
@@ -506,7 +507,7 @@ def build_spec(porter, output):
         output = os.path.join(output, porter.get_spec_name() + ".spec")
     tmp = sys.stdout
     if output != "":
-        sys.stdout = open(output, 'w+')
+        sys.stdout = open(output, 'w+', encoding='utf-8')
 
     print("%global _empty_manifest_terminate_build 0")
     print(name_tag_template.format(pkg_name=porter.get_spec_name()))
