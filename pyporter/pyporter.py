@@ -74,6 +74,7 @@ class PyPorter:
 
     def __init__(self, args):
         mirror = args.mirror
+        resp = ""
         self.mirror = mirror if mirror == "" or mirror[-1] != '/' else mirror[:-1]
         retry_call(self.do_init, [args.arch, args.pkg, args.pkgversion],
                    tries=args.retry, delay=args.delay)
@@ -88,7 +89,7 @@ class PyPorter:
         else:
             url = self.__url_template_with_ver\
                 .format(pkg_name=pkg, pkg_ver=ver)
-        resp = ""
+        
         try:
             with urllib.request.urlopen(url, timeout=30) as u:
                 self.__json = json.loads(u.read().decode('utf-8'))
@@ -334,7 +335,6 @@ def transform_module_name(n):
     Any string with '.' or '/' is considered file, and will be ignored
     Modules start with python- will be changed to python3- for consistency.
     """
-    # remove ()
     ns = re.split("[()]", n)
     ver_constrain = []
     ns[0] = ns[0].strip()
@@ -344,15 +344,6 @@ def transform_module_name(n):
         ns[0] = "python3-" + ns[0]
         if ns[0].find("/") != -1 or ns[0].find(".") != -1:
             return ""
-    """
-    if len(ns) > 1:
-        vers = ns[1].split(",")
-        for ver in vers:
-            m = re.match("([<>=]+)( *)(\d.*)", ver.strip())
-            ver_constrain.append(ns[0] + " " + m[1] + " " + m[3])
-        return ", ".join(ver_constrain)
-    else:
-    """
     return ns[0]
 
 
@@ -626,26 +617,21 @@ def porter_creator(args):
     if args.type == "python":
         return PyPorter(args)
 
-    return None
+    logger.error("Type %s is not supported now" % args.type)
+    sys.exit(1)
 
 
 def main():
     dft_root_path = os.path.join(str(Path.home()))
 
     parser = do_args(dft_root_path)
-
     args = parser.parse_args()
-
     porter = porter_creator(args)
-    if porter is None:
-        logger.error("Type %s is not supported now" % args.type)
-        sys.exit(1)
 
     if args.requires:
         req_list = porter.get_build_requires()
         if req_list is not None:
-            for req in req_list:
-                print(req)
+            print('\n'.join(req_list))
     elif args.spec:
         build_spec(porter, args.output)
     elif args.build:

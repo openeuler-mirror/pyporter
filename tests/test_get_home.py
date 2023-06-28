@@ -1,7 +1,5 @@
 import unittest
-import io
 import os
-import urllib.request
 from unittest.mock import patch, MagicMock
 from pyporter.pyporter import porter_creator
 
