@@ -17,33 +17,30 @@ This is a packager bot for python modules from pypi.org
 # Description: provide a tool to package python module automatically
 # ******************************************************************************/
 
-import urllib
-import urllib.request
-from pprint import pprint
-from os import path
-import json
-import sys
-import socket
-import re
-import datetime
 import argparse
-import subprocess
+import datetime
+import hashlib
+import json
+import logging
 import os
 import platform
-import logging
+import re
+import subprocess
+import sys
+import urllib
+import urllib.request
+from os import path
 from pathlib import Path
-import hashlib
+
 from retry import retry_call
 
-# init logging
 logger = logging.getLogger()
 
 handler = logging.StreamHandler(sys.stdout)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-
-# python3-wget is not default available on openEuler yet.
 
 json_file_template = '{pkg_name}.json'
 name_tag_template = 'Name:\t\t{pkg_name}'
@@ -55,7 +52,6 @@ home_tag_template = 'URL:\t\t{pkg_home}'
 source_tag_template = 'Source0:\t{pkg_source}'
 
 buildreq_tag_template = 'BuildRequires:\t{req}'
-
 
 # TODO List
 # 1. Need a reliable way to get description of module .. Partially done
@@ -75,9 +71,11 @@ class PyPorter:
     def __init__(self, args):
         mirror = args.mirror
         resp = ""
-        self.mirror = mirror if mirror == "" or mirror[-1] != '/' else mirror[:-1]
+        self.mirror = mirror if mirror == "" or mirror[
+            -1] != '/' else mirror[:-1]
         retry_call(self.do_init, [args.arch, args.pkg, args.pkgversion],
-                   tries=args.retry, delay=args.delay)
+                   tries=args.retry,
+                   delay=args.delay)
 
     def do_init(self, arch, pkg, ver=""):
         """
@@ -89,13 +87,14 @@ class PyPorter:
         else:
             url = self.__url_template_with_ver\
                 .format(pkg_name=pkg, pkg_ver=ver)
-        
+
         try:
             with urllib.request.urlopen(url, timeout=30) as u:
                 self.__json = json.loads(u.read().decode('utf-8'))
         except urllib.error.HTTPError as err:
             if err.code == 404:
-                logger.error(f"The package:{pkg} ver:{ver} does not existed on pypi")
+                logger.error(
+                    f"The package:{pkg} ver:{ver} does not existed on pypi")
                 sys.exit(1)
             else:
                 raise
@@ -121,11 +120,8 @@ class PyPorter:
             filename = s_info.get("filename")
             if not filename:
                 return ""
-            filename = (
-                filename[: -len(".tar.gz")]
-                if "tar.gz" in filename
-                else filename[: -len(".zip")]
-            )
+            filename = (filename[:-len(".tar.gz")]
+                        if "tar.gz" in filename else filename[:-len(".zip")])
             v = self.get_version()
             return filename.replace("-" + v, "")
         return ""
@@ -146,11 +142,9 @@ class PyPorter:
         try:
             home = self.__json["info"]["project_urls"]["Homepage"]
         except:
-            home = (
-                self.__json["info"]["project_url"]
-                or self.__json["info"]["home_page"]
-                or self.__json["info"]["package_url"]
-            )
+            home = (self.__json["info"]["project_url"]
+                    or self.__json["info"]["home_page"]
+                    or self.__json["info"]["package_url"])
         if home is None:
             logger.error("Cant find home page url")
             sys.exit(1)
@@ -179,7 +173,11 @@ class PyPorter:
         rs = self.get_releases()
         for r in rs:
             if r["packagetype"] == "sdist":
-                return {"filename": r["filename"], "md5": r["md5_digest"], "url": r["url"]}
+                return {
+                    "filename": r["filename"],
+                    "md5": r["md5_digest"],
+                    "url": r["url"]
+                }
         return None
 
     def get_releases(self):
@@ -205,7 +203,8 @@ class PyPorter:
         if s_info:
             surl = s_info.get("url")
             if self.mirror:
-                surl = surl.replace("https://files.pythonhosted.org", self.mirror)
+                surl = surl.replace("https://files.pythonhosted.org",
+                                    self.mirror)
             return surl
         return ""
 
@@ -282,12 +281,11 @@ class PyPorter:
                 if br == "":
                     continue
                 #
-                # Do not output BuildRequires: 
+                # Do not output BuildRequires:
                 # just collect all build requires and using pip to install
-                # than can help to build all rpm withoud trap into 
+                # than can help to build all rpm withoud trap into
                 # build dependency nightmare
                 #
-                # print(buildreq_tag_template.format(req=br))
                 name = str.lstrip(br).split(" ")
                 req_list.append(name[0])
         return req_list
@@ -320,7 +318,7 @@ class PyPorter:
         fname = json_file_template.format(pkg_name=self.__pkg_name)
         json_file = os.path.join(spath, fname)
 
-        # if file exist, do nothing 
+        # if file exist, do nothing
         if path.exists(json_file) and path.isfile(json_file):
             with open(json_file, 'r') as f:
                 resp = json.load(f)
@@ -387,7 +385,7 @@ def prepare_rpm_build_env(root):
     prepare environment for rpmbuild
     """
     if not os.path.exists(root):
-        print("Root path %s does not exist\n" & root)
+        print(f"Root path {root} does not exist\n")
         return ""
 
     buildroot = os.path.join(root, "rpmbuild")
@@ -406,7 +404,6 @@ def try_pip_install_package(pkg):
     """
     install packages listed in build requires
     """
-    # try pip installation
     pip_name = pkg.split("-")
     if len(pip_name) == 2:
         ret = subprocess.call(["pip3", "install", "--user", pip_name[1]])
@@ -414,7 +411,9 @@ def try_pip_install_package(pkg):
         ret = subprocess.call(["pip3", "install", "--user", pip_name[0]])
 
     if ret != 0:
-        logger.error("%s can not be installed correctly, Fix it later, go ahead to do building..." % pip_name)
+        logger.error(
+            f"{pip_name} can not be installed correctly, Fix it later, go ahead to do building..."
+        )
 
     #
     # TODO: try to build anyway, fix it later
@@ -432,11 +431,9 @@ def package_installed(pkg):
 
 
 def dependencies_ready(req_list):
-    """ 
+    """
     TODO: do not need to do dependency check here, do it in pyporter_run
     """
-    #    if (try_pip_install_package(req) == False):
-    #        return req
     return ""
 
 
@@ -459,7 +456,8 @@ def build_install_rpm(porter, rootpath):
     else:
         arch = platform.machine()
 
-    pkgname = os.path.join(rootpath, "rpmbuild", "RPMS", arch, porter.get_pkg_name() + "*")
+    pkgname = os.path.join(rootpath, "rpmbuild", "RPMS", arch,
+                           porter.get_pkg_name() + "*")
     ret = subprocess.call(["rpm", "-ivh", pkgname])
     if ret != 0:
         return "Install failed\n"
@@ -475,12 +473,14 @@ def build_rpm(porter, rootpath):
     if buildroot == "":
         return False
 
-    specfile = os.path.join(buildroot, "SPECS", porter.get_spec_name() + ".spec")
+    specfile = os.path.join(buildroot, "SPECS",
+                            porter.get_spec_name() + ".spec")
 
     req_list = build_spec(porter, specfile)
     ret = dependencies_ready(req_list)
     if ret != "":
-        logger.error("%s can not be installed automatically, Please handle it" % ret)
+        logger.error(
+            f"{ret} can not be installed automatically, Please handle it")
         return ret
 
     download_source(porter, os.path.join(buildroot, "SOURCES"))
@@ -516,25 +516,27 @@ def build_spec(porter, output):
     print(porter.get_description())
     print("")
 
-    print("%package -n {name}".format(name=porter.get_pkg_name()))
+    print(f"%package -n {porter.get_pkg_name()}")
     print(summary_tag_template.format(pkg_sum=porter.get_summary()))
-    print("Provides:\t" + porter.get_spec_name())
+    print(f"Provides:\t{porter.get_spec_name()}")
 
     porter.prepare_build_requires()
 
     build_req_list = porter.get_build_requires()
 
-    print("%description -n " + porter.get_pkg_name())
+    print(f"%description -n {porter.get_pkg_name()}")
     print(porter.get_description())
     print("")
     print("%package help")
-    print("Summary:\tDevelopment documents and examples for {name}".format(name=porter.get_module_name()))
-    print("Provides:\t{name}-doc".format(name=porter.get_pkg_name()))
+    print(
+        f"Summary:\tDevelopment documents and examples for {porter.get_module_name()}"
+    )
+    print(f"Provides:\t{porter.get_pkg_name()}-doc")
     print("%description help")
     print(porter.get_description())
     print("")
     print("%prep")
-    print("%autosetup -n {name}-{ver}".format(name=porter.get_archive_name(), ver=porter.get_version()))
+    print(f"%autosetup -n {porter.get_archive_name()}-{porter.get_version()}")
     print("")
     print("%build")
     porter.prepare_pkg_build()
@@ -544,33 +546,45 @@ def build_spec(porter, output):
     print("install -d -m755 %{buildroot}/%{_pkgdocdir}")
     print("if [ -d doc ]; then cp -arf doc %{buildroot}/%{_pkgdocdir}; fi")
     print("if [ -d docs ]; then cp -arf docs %{buildroot}/%{_pkgdocdir}; fi")
-    print("if [ -d example ]; then cp -arf example %{buildroot}/%{_pkgdocdir}; fi")
-    print("if [ -d examples ]; then cp -arf examples %{buildroot}/%{_pkgdocdir}; fi")
+    print(
+        "if [ -d example ]; then cp -arf example %{buildroot}/%{_pkgdocdir}; fi"
+    )
+    print(
+        "if [ -d examples ]; then cp -arf examples %{buildroot}/%{_pkgdocdir}; fi"
+    )
     print("pushd %{buildroot}")
     print("if [ -d usr/lib ]; then")
     # we double quota the path for the case:
     # whitespace in filename or dirname
     # see: https://rpm-list.redhat.narkive.com/7WUOZXa6/basic-question-space-in-file-name
-    print("\tfind usr/lib -type f -printf \"\\\"/%h/%f\\\"\\n\" >> filelist.lst")
+    print(
+        "\tfind usr/lib -type f -printf \"\\\"/%h/%f\\\"\\n\" >> filelist.lst")
     print("fi")
     print("if [ -d usr/lib64 ]; then")
-    print("\tfind usr/lib64 -type f -printf \"\\\"/%h/%f\\\"\\n\" >> filelist.lst")
+    print(
+        "\tfind usr/lib64 -type f -printf \"\\\"/%h/%f\\\"\\n\" >> filelist.lst"
+    )
     print("fi")
     print("if [ -d usr/bin ]; then")
-    print("\tfind usr/bin -type f -printf \"\\\"/%h/%f\\\"\\n\" >> filelist.lst")
+    print(
+        "\tfind usr/bin -type f -printf \"\\\"/%h/%f\\\"\\n\" >> filelist.lst")
     print("fi")
     print("if [ -d usr/sbin ]; then")
-    print("\tfind usr/sbin -type f -printf \"\\\"/%h/%f\\\"\\n\" >> filelist.lst")
+    print(
+        "\tfind usr/sbin -type f -printf \"\\\"/%h/%f\\\"\\n\" >> filelist.lst"
+    )
     print("fi")
     print("touch doclist.lst")
     print("if [ -d usr/share/man ]; then")
-    print("\tfind usr/share/man -type f -printf \"\\\"/%h/%f.gz\\\"\\n\" >> doclist.lst")
+    print(
+        "\tfind usr/share/man -type f -printf \"\\\"/%h/%f.gz\\\"\\n\" >> doclist.lst"
+    )
     print("fi")
     print("popd")
     print("mv %{buildroot}/filelist.lst .")
     print("mv %{buildroot}/doclist.lst .")
     print("")
-    print("%files -n {name} -f filelist.lst".format(name=porter.get_pkg_name()))
+    print(f"%files -n {porter.get_pkg_name()} -f filelist.lst")
 
     porter.prepare_pkg_files()
 
@@ -580,7 +594,9 @@ def build_spec(porter, output):
     print("")
     print("%changelog")
     date_str = datetime.date.today().strftime("%a %b %d %Y")
-    print("* {today} Python_Bot <Python_Bot@openeuler.org> - {version}-1".format(today=date_str, version=porter.get_version()))
+    print(
+        f"* {date_str} Python_Bot <Python_Bot@openeuler.org> - {porter.get_version()}-1"
+    )
     print("- Package Spec generated")
 
     sys.stdout = tmp
@@ -591,23 +607,76 @@ def build_spec(porter, output):
 def do_args(dft_root_path):
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("-v", "--pkgversion", help="Specify the pypi package version", type=str, default="")
-    parser.add_argument("--retry", help="Specify the retry times when fetching metadata(default=3)",
-                        type=int, default=3)
-    parser.add_argument("--delay", help="Specify the delay time between two retries(default 2s)", type=int, default=2)
-    parser.add_argument("-m", "--mirror", help="Specify the pypi mirror, should be a url which contain pypi packages",
-                        type=str, default="")
-    parser.add_argument("-s", "--spec", help="Create spec file", action="store_true")
-    parser.add_argument("-R", "--requires", help="Get required python modules", action="store_true")
-    parser.add_argument("-b", "--build", help="Build rpm package", action="store_true")
-    parser.add_argument("-B", "--buildinstall", help="Build&Install rpm package", action="store_true")
-    parser.add_argument("-r", "--rootpath", help="Build rpm package in root path", type=str, default=dft_root_path)
-    parser.add_argument("-d", "--download", help="Download source file indicated path", action="store_true")
-    parser.add_argument("-p", "--path", help="indicated path to store files", type=str, default=os.getcwd())
-    parser.add_argument("-j", "--json", help="Get Package JSON info", action="store_true")
-    parser.add_argument("-o", "--output", help="Output to file", type=str, default="")
-    parser.add_argument("-t", "--type", help="Build module type : python, perl...", type=str, default="python")
-    parser.add_argument("-a", "--arch", help="Build module with arch", action="store_true")
+    parser.add_argument("-v",
+                        "--pkgversion",
+                        help="Specify the pypi package version",
+                        type=str,
+                        default="")
+    parser.add_argument(
+        "--retry",
+        help="Specify the retry times when fetching metadata(default=3)",
+        type=int,
+        default=3)
+    parser.add_argument(
+        "--delay",
+        help="Specify the delay time between two retries(default 2s)",
+        type=int,
+        default=2)
+    parser.add_argument(
+        "-m",
+        "--mirror",
+        help="Specify pypi mirror, should be a url which contain"
+        " pypi packages",
+        type=str,
+        default="")
+    parser.add_argument("-s",
+                        "--spec",
+                        help="Create spec file",
+                        action="store_true")
+    parser.add_argument("-R",
+                        "--requires",
+                        help="Get required python modules",
+                        action="store_true")
+    parser.add_argument("-b",
+                        "--build",
+                        help="Build rpm package",
+                        action="store_true")
+    parser.add_argument("-B",
+                        "--buildinstall",
+                        help="Build&Install rpm package",
+                        action="store_true")
+    parser.add_argument("-r",
+                        "--rootpath",
+                        help="Build rpm package in root path",
+                        type=str,
+                        default=dft_root_path)
+    parser.add_argument("-d",
+                        "--download",
+                        help="Download source file indicated path",
+                        action="store_true")
+    parser.add_argument("-p",
+                        "--path",
+                        help="indicated path to store files",
+                        type=str,
+                        default=os.getcwd())
+    parser.add_argument("-j",
+                        "--json",
+                        help="Get Package JSON info",
+                        action="store_true")
+    parser.add_argument("-o",
+                        "--output",
+                        help="Output to file",
+                        type=str,
+                        default="")
+    parser.add_argument("-t",
+                        "--type",
+                        help="Build module type : python, perl...",
+                        type=str,
+                        default="python")
+    parser.add_argument("-a",
+                        "--arch",
+                        help="Build module with arch",
+                        action="store_true")
     parser.add_argument("pkg", type=str, help="The Python Module Name")
 
     return parser
@@ -617,7 +686,7 @@ def porter_creator(args):
     if args.type == "python":
         return PyPorter(args)
 
-    logger.error("Type %s is not supported now" % args.type)
+    logger.error(f"Type {args.type} is not supported now")
     sys.exit(1)
 
 
@@ -637,7 +706,7 @@ def main():
     elif args.build:
         ret = build_rpm(porter, args.rootpath)
         if ret != "":
-            logger.error("build failed : BuildRequire : %s" % ret)
+            logger.error(f"build failed : BuildRequire : {ret}")
             sys.exit(1)
     elif args.buildinstall:
         ret = build_install_rpm(porter, args.rootpath)
@@ -648,6 +717,7 @@ def main():
         download_source(porter, args.path)
     elif args.json:
         porter.store_json(args.path)
+
 
 if __name__ == "__main__":
     main()

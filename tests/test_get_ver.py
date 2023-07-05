@@ -1,9 +1,11 @@
 import unittest
 from unittest.mock import MagicMock
+
 from pyporter.pyporter import porter_creator
 
 
 class TestGetByVer(unittest.TestCase):
+
     def test_invalid_ver(self):
         args = MagicMock()
         args.configure_mock(type="python")

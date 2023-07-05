@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import MagicMock
+
 from pyporter.pyporter import porter_creator
 
 VALID_PKG = ["pure-eval", "oic", "XStatic-Patternfly"]
@@ -7,6 +8,7 @@ VALID_ARCHIVE_NAME = ["pure_eval", "oic", "XStatic-Patternfly"]
 
 
 class TestValidArchive(unittest.TestCase):
+
     def test(self):
         args = MagicMock()
         args.configure_mock(type="python")

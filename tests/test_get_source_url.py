@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import MagicMock
+
 from pyporter.pyporter import porter_creator
 
 SRC_URL = "https://files.pythonhosted.org/packages/36/62/7cda20a9bd8c52bf47c6f1cf7e"\
@@ -9,6 +10,7 @@ MIRROR_URL = "https://mirrors.aliyun.com/pypi/packages/36/62/7cda20a9bd8c52bf47c
 
 
 class TestValidSource(unittest.TestCase):
+
     def test_no_mirror(self):
         args = MagicMock()
         args.configure_mock(type="python")

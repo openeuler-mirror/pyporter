@@ -36,13 +36,7 @@ setuptools.setup(
         'Topic :: Utilities',
     ],
     long_description=open('README.md').read(),
-#    scripts=['pyporter'],
-    entry_points={
-        'console_scripts': [
-            'pyporter = pyporter.pyporter:main',
-        ]
-    },
-    install_requires=[
-        "retry2"
-    ]
-)
+    entry_points={'console_scripts': [
+        'pyporter = pyporter.pyporter:main',
+    ]},
+    install_requires=["retry2"])

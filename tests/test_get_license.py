@@ -1,6 +1,7 @@
-import unittest
 import os
-from unittest.mock import patch, MagicMock
+import unittest
+from unittest.mock import MagicMock, patch
+
 from pyporter.pyporter import porter_creator
 
 
@@ -8,6 +9,7 @@ class TestNoOSIApproved(unittest.TestCase):
     """
     case 1: json["info"]["license"] == "" and the License in json["info"]["classifiers"] is not OSI approved
     """
+
     def setUp(self):
         self.f = open(os.path.join('tests', __class__.__name__ + '.json'))
         self.data = self.f.read().encode()
@@ -27,7 +29,9 @@ class TestNoOSIApproved(unittest.TestCase):
         args.mirror = ""
 
         p = porter_creator(args)
-        self.assertEqual('CC0 1.0 Universal (CC0 1.0) Public Domain Dedication', p.get_license())
+        self.assertEqual(
+            'CC0 1.0 Universal (CC0 1.0) Public Domain Dedication',
+            p.get_license())
 
     def tearDown(self):
         self.f.close()
@@ -37,6 +41,7 @@ class TestOSIApproved(unittest.TestCase):
     """
     case 2: json["info"]["license"] == "" and the License in json["info"]["classifiers"] is OSI approved
     """
+
     def setUp(self):
         self.f = open(os.path.join('tests', __class__.__name__ + '.json'))
         self.data = self.f.read().encode()
@@ -66,6 +71,7 @@ class TestLicense(unittest.TestCase):
     """
     case 3: json["info"]["license"] != ""
     """
+
     def setUp(self):
         self.f = open(os.path.join('tests', __class__.__name__ + '.json'))
         self.data = self.f.read().encode()

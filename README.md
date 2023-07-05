@@ -36,6 +36,13 @@ pyporter <package> -s -o python-<package>.spec
 
 #### Contribution
 
+You could install pre commit hook before commit your code, it will check your code format and style.
+
+```python
+pip install pre-commit
+```
+Refer https://pre-commit.com/
+
 1.  Fork the repository
 2.  Create Feat_xxx branch
 3.  Commit your code
