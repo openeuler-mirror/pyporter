@@ -24,7 +24,6 @@ import json
 import logging
 import os
 import platform
-import re
 import subprocess
 import sys
 import urllib
@@ -33,6 +32,8 @@ from os import path
 from pathlib import Path
 
 from retry import retry_call
+
+from pyporter.utils import refine_requires, transform_module_name
 
 logger = logging.getLogger()
 
@@ -214,12 +215,14 @@ class PyPorter:
         """
         rs = self.__json["info"]["requires_dist"]
         if rs is None:
-            return
+            return []
+        all_requires = []
         for r in rs:
             idx = r.find(";")
             if idx != -1:
                 r = r[:idx]
-            print("Requires:\t" + transform_module_name(r))
+            all_requires.append(transform_module_name(r))
+        return all_requires
 
     def __get_buildarch(self):
         """
@@ -327,35 +330,6 @@ class PyPorter:
                 json.dump(self.__json, f)
 
 
-def transform_module_name(n):
-    """
-    return module name with version restriction.
-    Any string with '.' or '/' is considered file, and will be ignored
-    Modules start with python- will be changed to python3- for consistency.
-    """
-    ns = re.split("[()]", n)
-    ver_constrain = []
-    ns[0] = ns[0].strip()
-    if ns[0].startswith("python-"):
-        ns[0] = ns[0].replace("python-", "python3-")
-    else:
-        ns[0] = "python3-" + ns[0]
-        if ns[0].find("/") != -1 or ns[0].find(".") != -1:
-            return ""
-    return ns[0]
-
-
-def refine_requires(req):
-    """
-    return only requires without ';' (thus no extra)
-    """
-    ra = req.split(";", 1)
-    #
-    # Do not add requires which has ;, which is often has very complicated precondition
-    # TODO: need more parsing of the denpency after ;
-    return transform_module_name(ra[0])
-
-
 def download_source(porter, tgtpath):
     """
     download source file from url, and save it to target path
@@ -430,13 +404,6 @@ def package_installed(pkg):
     return False
 
 
-def dependencies_ready(req_list):
-    """
-    TODO: do not need to do dependency check here, do it in pyporter_run
-    """
-    return ""
-
-
 def build_package(specfile):
     """
     build rpm package with rpmbuild
@@ -477,11 +444,6 @@ def build_rpm(porter, rootpath):
                             porter.get_spec_name() + ".spec")
 
     req_list = build_spec(porter, specfile)
-    ret = dependencies_ready(req_list)
-    if ret != "":
-        logger.error(
-            f"{ret} can not be installed automatically, Please handle it")
-        return ret
 
     download_source(porter, os.path.join(buildroot, "SOURCES"))
 
@@ -510,7 +472,8 @@ def build_spec(porter, output):
     print(source_tag_template.format(pkg_source=porter.get_source_url()))
     porter.get_buildarch()
     print("")
-    porter.get_requires()
+    for r in porter.get_requires():
+        print("Requires:\t" + r)
     print("")
     print("%description")
     print(porter.get_description())
