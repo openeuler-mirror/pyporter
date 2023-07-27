@@ -23,11 +23,11 @@ import re
 #     else:
 #         return ns[0]
 
-
+# TODO: this should be more compatible for https://peps.python.org/pep-0508/
 def transform_module_name(input_str):
     # Extracting the module name from the input string
-    module_name = re.match(r"([a-zA-Z0-9_-]+)", input_str).group(1)
-    version_names = input_str[len(module_name):]
+    module_name = re.match(r"([a-zA-Z0-9_-]+)", input_str).group(1).strip()
+    version_names = input_str[len(module_name):].strip()
     # Extracting the version constraint from the input string
     version_constraint = version_names.split(",")
     package_name = "python3-" + module_name
