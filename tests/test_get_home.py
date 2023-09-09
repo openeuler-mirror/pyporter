@@ -15,8 +15,13 @@ args.mirror = ""
 class TestNoHomepageNone(unittest.TestCase):
 
     def setUp(self):
-        self.f = open(os.path.join('tests', __class__.__name__ + '.json'))
-        self.data = self.f.read().encode()
+        try:
+            self.f = open(os.path.join('tests', f'{__class__.__name__}.json'))
+            self.data = self.f.read().encode()
+        except FileNotFoundError as e:
+            self.fail(f"Failed to open or read file: {e}")
+        except Exception as e:
+            self.fail(f"An error occurred: {e}")
 
     @patch('urllib.request.urlopen')
     def test_no_homepage_in_project_urls(self, m):
