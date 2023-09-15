@@ -1,34 +1,10 @@
 import re
 
-# def transform_module_name(s: str) -> str:
-#     """
-#     return module name with version restriction.
-#     Any string with '.' or '/' is considered file, and will be ignored
-#     Modules start with python- will be changed to python3- for consistency.
-#     """
-#     ns = re.split("[()]", s)
-#     ver_constrain = []
-#     ns[0] = ns[0].strip()
-#     if ns[0].startswith("python-"):
-#         ns[0] = ns[0].replace("python-", "python3-")
-#     else:
-#         ns[0] = "python3-" + ns[0]
-
-# # Process version constraints
-#     if len(ns) > 1:
-#         ver_constrain.append(ns[1])
-
-#     if len(ver_constrain) > 0:
-#         return f"({ns[0]} {ver_constrain[0]})"
-#     else:
-#         return ns[0]
 
 # TODO: this should be more compatible for https://peps.python.org/pep-0508/
 def transform_module_name(input_str):
-    # Extracting the module name from the input string
     module_name = re.match(r"([a-zA-Z0-9_-]+)", input_str).group(1).strip()
-    version_names = input_str[len(module_name):].strip()
-    # Extracting the version constraint from the input string
+    version_names = input_str[len(module_name):].strip().strip("()")
     version_constraint = version_names.split(",")
     package_name = "python3-" + module_name
     if len(version_constraint) > 1:

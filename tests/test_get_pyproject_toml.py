@@ -36,7 +36,8 @@ class TestPyprojectToml(unittest.TestCase):
         self.assertEqual(p.get_requires(), [
             "(python3-brotli>=1.0.9)", "(python3-certifi)",
             "(python3-urllib3-secure-extra)",
-            "(python3-pysocks<2.0 with python3-pysocks>=1.5.6)"
+            "(python3-pysocks<2.0 with python3-pysocks>=1.5.6)",
+            "(python3-jmespath<2.0.0 with python3-jmespath>=0.7.1)"
         ])
 
     def tearDown(self):

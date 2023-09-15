@@ -10,7 +10,9 @@ Install below software before using this tool
 3. libstdc++-devel
 4. python3-cffi
 5. rpmbuild
-
+6. python3-hatchling
+7. python3-hatch-vcs
+8. openEuler-rpm-config (>= Release 30-39)
 
 #### Installation
 
