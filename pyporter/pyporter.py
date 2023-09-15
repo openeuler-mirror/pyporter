@@ -231,9 +231,8 @@ class PyPorter:
         """
         rs = self.get_releases()
         for r in rs:
-            if r["packagetype"] == "bdist_wheel":
-                if r["url"].find("amd64") != -1:
-                    return False
+            if r["packagetype"] == "bdist_wheel" and "amd64" in r["url"]:
+                return False
         return True
 
     def is_build_noarch(self):
@@ -256,7 +255,6 @@ class PyPorter:
         for d in desc:
             if len(d.strip()) == 0:
                 continue
-            first_char = d.strip()[0]
             ignore_line = False
             if d.strip().startswith("===") or d.strip().startswith("---"):
                 paragraph = paragraph + 1
@@ -303,16 +301,16 @@ class PyPorter:
             print(buildreq_tag_template.format(req='gdb'))
 
     def prepare_pkg_build(self):
-        print("%py3_build")
+        print("%pyproject_build")
 
     def prepare_pkg_install(self):
-        print("%py3_install")
+        print("%pyproject_install")
 
     def prepare_pkg_files(self):
         if self.__build_noarch:
-            print("%dir %{python3_sitelib}/*")
+            print("%{python3_sitelib}/*")
         else:
-            print("%dir %{python3_sitearch}/*")
+            print("%{python3_sitearch}/*")
 
     def store_json(self, spath):
         """
@@ -321,7 +319,6 @@ class PyPorter:
         fname = json_file_template.format(pkg_name=self.__pkg_name)
         json_file = os.path.join(spath, fname)
 
-        # if file exist, do nothing
         if path.exists(json_file) and path.isfile(json_file):
             with open(json_file, 'r') as f:
                 resp = json.load(f)
@@ -389,9 +386,6 @@ def try_pip_install_package(pkg):
             f"{pip_name} can not be installed correctly, Fix it later, go ahead to do building..."
         )
 
-    #
-    # TODO: try to build anyway, fix it later
-    #
     return True
 
 
@@ -516,13 +510,10 @@ def build_spec(porter, output):
         "if [ -d examples ]; then cp -arf examples %{buildroot}/%{_pkgdocdir}; fi"
     )
     print("pushd %{buildroot}")
-    print("if [ -d usr/lib ]; then")
-    # we double quota the path for the case:
-    # whitespace in filename or dirname
-    # see: https://rpm-list.redhat.narkive.com/7WUOZXa6/basic-question-space-in-file-name
-    print(
-        "\tfind usr/lib -type f -printf \"\\\"/%h/%f\\\"\\n\" >> filelist.lst")
-    print("fi")
+    print("touch filelist.lst")
+    # # we double quota the path for the case:
+    # # whitespace in filename or dirname
+    # # see: https://rpm-list.redhat.narkive.com/7WUOZXa6/basic-question-space-in-file-name
     print("if [ -d usr/lib64 ]; then")
     print(
         "\tfind usr/lib64 -type f -printf \"\\\"/%h/%f\\\"\\n\" >> filelist.lst"
