@@ -19,6 +19,9 @@ dependencies = [
     "retry2"
 ]
 
+[project.scripts]
+pyporter = "pyporter.pyporter:main"
+
 [project.urls]
 "Homepage" = "https://gitee.com/openeuler/pyporter"
 "Bug Tracker" = "https://gitee.com/openeuler/pyporter/issues"
