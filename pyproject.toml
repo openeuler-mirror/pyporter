@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyporter"
+version = "1.1"
+authors=[
+    {name="Zhipeng Xie", email="xiezhipeng1@huawei.com"},
+]
+description = "A rpm packager bot for python modules from pypi.org"
+readme = "README.md"
+requires-python = ">=3.6"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: Mulan PSL v2",
+]
+dependencies = [
+    "retry2"
+]
+
+[project.scripts]
+pyporter = "pyporter.pyporter:main"
+
+[project.urls]
+"Homepage" = "https://gitee.com/openeuler/pyporter"
+"Bug Tracker" = "https://gitee.com/openeuler/pyporter/issues"
