@@ -147,7 +147,7 @@ class PyPorter:
                     or self.__json["info"]["home_page"]
                     or self.__json["info"]["package_url"])
         if home is None:
-            logger.error("Cant find home page url")
+            logger.error("Can't find home page url")
             sys.exit(1)
         return home
 
@@ -332,11 +332,11 @@ def download_source(porter, tgtpath):
     download source file from url, and save it to target path
     """
     if not os.path.exists(tgtpath):
-        print("download path %s does not exist\n", tgtpath)
+        print("Download path %s does not exist\n", tgtpath)
         return False
     s_info = porter.get_source_info()
     if s_info is None:
-        print("analyze source info error")
+        print("Analyze source info error")
         return False
     s_url = s_info.get("url")
     s_path = os.path.join(tgtpath, s_info.get("filename"))
@@ -346,7 +346,7 @@ def download_source(porter, tgtpath):
             md5obj.update(f.read())
             _hash = str(md5obj.hexdigest()).lower()
             if s_info.get("md5") == _hash:
-                print("same source file exists, skip")
+                print("Same source file exists, skip")
                 return True
     try:
         subprocess.call(["wget", s_url, "-P", tgtpath])
@@ -665,7 +665,7 @@ def main():
     elif args.build:
         ret = build_rpm(porter, args.rootpath)
         if ret != "":
-            logger.error(f"build failed : BuildRequire : {ret}")
+            logger.error(f"Build failed : BuildRequire : {ret}")
             sys.exit(1)
     elif args.buildinstall:
         ret = build_install_rpm(porter, args.rootpath)
