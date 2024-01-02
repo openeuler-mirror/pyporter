@@ -348,7 +348,12 @@ def download_source(porter, tgtpath):
             if s_info.get("md5") == _hash:
                 print("same source file exists, skip")
                 return True
-    return subprocess.call(["wget", s_url, "-P", tgtpath])
+    try:
+        subprocess.call(["wget", s_url, "-P", tgtpath])
+        return True
+    except Exception as e:
+        print(f"Failed to download source: {str(e)}")
+        return False
 
 
 def prepare_rpm_build_env(root):
