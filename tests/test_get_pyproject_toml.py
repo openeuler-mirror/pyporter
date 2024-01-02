@@ -11,8 +11,10 @@ SRC_URL = "https://files.pythonhosted.org/packages/d6/af/"\
 class TestPyprojectToml(unittest.TestCase):
 
     def setUp(self):
-        self.f = open(os.path.join('tests', __class__.__name__ + '.json'))
-        self.data = self.f.read().encode()
+        test_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(test_dir, f'{__class__.__name__}.json')
+        with open(file_path, 'r') as file:
+            self.data = file.read().encode()
 
     @patch('urllib.request.urlopen')
     def test_pyprojecttoml(self, m):
