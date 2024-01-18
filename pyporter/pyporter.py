@@ -80,7 +80,18 @@ class PyPorter:
 
     def do_init(self, arch, pkg, ver=""):
         """
-        receive json from pypi.org
+        Initialize the PyPorter instance by fetching metadata from pypi.org.
+
+        Args:
+            arch (str): The architecture to check if the module is architecture dependent.
+            pkg (str): The name of the Python module.
+            ver (str): The version of the Python module (default is "latest").
+
+        Raises:
+            SystemExit: If the specified package or version does not exist on pypi.org.
+
+        Returns:
+            None
         """
         if not ver:
             ver = "latest"
