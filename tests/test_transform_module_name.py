@@ -19,10 +19,14 @@ class TestTransofrmModuleName(unittest.TestCase):
         expected_output = "(python3-pyjwkest>=1.3.6)"
         self.assertEqual(transform_module_name(input_str), expected_output)
 
+        input_str = "ipython[all] (=3.1)"
+        expected_output = "(python3-ipython[all]=3.1)"
+        self.assertEqual(transform_module_name(input_str), expected_output)
+
     def test_invalid_input(self):
         input_str = "!invalid_module123"
         expected_output = "Invalid input format"
-        self.assertEqual(transform_module_name(input_str), expected_output)    
+        self.assertEqual(transform_module_name(input_str), expected_output)
 
 
 if __name__ == '__main__':

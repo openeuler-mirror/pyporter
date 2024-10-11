@@ -3,7 +3,7 @@ import re
 
 # TODO: this should be more compatible for https://peps.python.org/pep-0508/
 def transform_module_name(input_str):
-    match = re.match(r"([a-zA-Z0-9_-]+)", input_str)
+    match = re.match(r"([a-zA-Z0-9_\-\[\]]+)", input_str)
     if match:
         module_name = match.group(1).strip()
 
