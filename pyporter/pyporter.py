@@ -28,6 +28,7 @@ import subprocess
 import sys
 import urllib
 import urllib.request
+import urllib.error
 from os import path
 from pathlib import Path
 
@@ -97,7 +98,7 @@ class PyPorter:
             ver = "latest"
             url = self.__url_template.format(pkg_name=pkg)
         else:
-            url = self.__url_template_with_ver\
+            url = self.__url_template_with_ver \
                 .format(pkg_name=pkg, pkg_ver=ver)
 
         try:
@@ -175,7 +176,7 @@ class PyPorter:
             if k.startswith("License"):
                 ks = k.split("::")
                 return ks[-1].strip()
-        return ""
+        return "UNKNOWN"
 
     def get_source_info(self):
         """
@@ -188,8 +189,18 @@ class PyPorter:
                 return {
                     "filename": r["filename"],
                     "md5": r["md5_digest"],
-                    "url": r["url"]
+                    "url": r["url"],
+                    "packagetype": r["packagetype"]
                 }
+        else:
+            for r in rs:
+                if r["packagetype"] == "bdist_wheel":
+                    return {
+                        "filename": r["filename"],
+                        "md5": r["md5_digest"],
+                        "url": r["url"],
+                        "packagetype": r["packagetype"]
+                    }
         return None
 
     def get_releases(self):
@@ -306,6 +317,7 @@ class PyPorter:
         print(buildreq_tag_template.format(req='python3-devel'))
         print(buildreq_tag_template.format(req='python3-setuptools'))
         print(buildreq_tag_template.format(req='python3-pip'))
+        print(buildreq_tag_template.format(req='python3-wheel'))
         if not self.__build_noarch:
             print(buildreq_tag_template.format(req='python3-cffi'))
             print(buildreq_tag_template.format(req='gcc'))
@@ -349,7 +361,7 @@ def download_source(porter, tgtpath):
     if s_info is None:
         print("Analyze source info error")
         return False
-    s_url = s_info.get("url")
+    s_url = porter.get_source_url()
     s_path = os.path.join(tgtpath, s_info.get("filename"))
     if os.path.exists(s_path):
         with open(s_path, 'rb') as f:
@@ -463,6 +475,62 @@ def build_rpm(porter, rootpath):
 
 
 def build_spec(porter, output):
+    if porter.get_source_info().get("packagetype") == "sdist":
+        return build_sdist_spec(porter, output)
+    else:
+        return build_bdist_wheel_spec(porter, output)
+
+
+def build_bdist_wheel_spec(porter, output):
+    """
+    print out the spec file
+    """
+    if os.path.isdir(output):
+        output = os.path.join(output, porter.get_spec_name() + ".spec")
+    tmp = sys.stdout
+    if output != "":
+        sys.stdout = open(output, 'w+', encoding='utf-8')
+    print(name_tag_template.format(pkg_name=porter.get_spec_name()))
+    print(version_tag_template.format(pkg_ver=porter.get_version()))
+    print('Release:\t1%{?dist}')
+    print(summary_tag_template.format(pkg_sum=porter.get_summary()))
+    print(license_tag_template.format(pkg_lic=porter.get_license()))
+    print(home_tag_template.format(pkg_home=porter.get_home()))
+    print(source_tag_template.format(pkg_source=porter.get_source_url()))
+    print("")
+    porter.get_buildarch()
+    print("")
+    print(f"Provides:\t{porter.get_spec_name()}")
+    porter.prepare_build_requires()
+    print("")
+    print("%description")
+    print(porter.get_description())
+    print("")
+    print("%prep")
+    print("%setup -q -c -T")
+    print("unzip -q %{SOURCE0} -d %{_builddir}/%{name}-%{version}")
+    print("")
+    print("%build")
+    print("# No build step required")
+    print("")
+    print("%install")
+    print("mkdir -p %{buildroot}%{python3_sitelib}")
+    print("cp -r %{_builddir}/%{name}-%{version}/* %{buildroot}%{python3_sitelib}")
+    print("")
+    print("%files")
+    print("%doc")
+    print("%{python3_sitelib}/*")
+    print("")
+    print("%changelog")
+    date_str = datetime.date.today().strftime("%a %b %d %Y")
+    print(
+        f"* {date_str} Python_Bot <Python_Bot@openeuler.org> - {porter.get_version()}-1"
+    )
+    print("- Package Spec generated")
+    sys.stdout = tmp
+
+
+def build_sdist_spec(porter, output):
     """
     print out the spec file
     """
@@ -596,7 +664,7 @@ def do_args(dft_root_path):
         "-m",
         "--mirror",
         help="Specify pypi mirror, should be a url which contain"
-        " pypi packages",
+             " pypi packages",
         type=str,
         default="")
     parser.add_argument("-s",
